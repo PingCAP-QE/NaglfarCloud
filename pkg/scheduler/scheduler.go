@@ -27,6 +27,12 @@ import (
 // 插件名称
 const Name = "naglfar-scheduler"
 
+var (
+	_ framework.PreFilterPlugin = &Scheduler{}
+	_ framework.FilterPlugin    = &Scheduler{}
+	_ framework.PreBindPlugin   = &Scheduler{}
+)
+
 type Args struct{}
 
 type Scheduler struct {
@@ -43,8 +49,12 @@ func (s *Scheduler) PreFilter(ctx context.Context, state *framework.CycleState, 
 	return framework.NewStatus(framework.Success, "")
 }
 
-func (s *Scheduler) Filter(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) *framework.Status {
-	klog.V(3).Infof("filter pod: %v, node: %v", pod.Name, nodeName)
+func (s *Scheduler) PreFilterExtensions() framework.PreFilterExtensions {
+	return nil
+}
+
+func (s *Scheduler) Filter(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
+	klog.V(3).Infof("filter pod: %v, node: %+v", pod.Name, nodeInfo.Node())
 	return framework.NewStatus(framework.Success, "")
 }
 
