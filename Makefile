@@ -29,3 +29,21 @@ mod:
 	@echo "go mod tidy"
 	GO111MODULE=on go mod tidy
 	@git diff --exit-code -- go.sum go.mod
+
+image: scheduler
+	docker build -t hexilee/naglfar-scheduler .
+
+deploy: image
+	kubectl apply -f deploy/naglfar-scheduler.yaml
+
+upgrade: deploy
+	kubectl rollout restart deployment/naglfar-scheduler -n kube-system
+
+destroy:
+	kubectl delete -f deploy/naglfar-scheduler.yaml
+
+describe:
+	kubectl describe deployment/naglfar-scheduler -n kube-system
+
+log:
+	kubectl logs -f deployment/naglfar-scheduler -n kube-system
