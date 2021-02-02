@@ -1,2 +1,2 @@
-# -NaglfarCloud
+# NaglfarCloud
 The cloud native naglfar.
