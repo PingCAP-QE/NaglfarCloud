@@ -152,24 +152,22 @@ data:
   scheduler-config.yaml: |
     apiVersion: kubescheduler.config.k8s.io/v1beta1
     kind: KubeSchedulerConfiguration
-    schedulerName: naglfar-scheduler
     leaderElection:
-      leaderElect: true
-      lockObjectName: naglfar-scheduler
-      lockObjectNamespace: kube-system
-    plugins:
-      preFilter:
-        enabled:
-        - name: "naglfar-scheduler"
-      filter:
-        enabled:
-        - name: "naglfar-scheduler"
-      preBind:
-        enabled:
-        - name: "naglfar-scheduler"
-    pluginConfig:
-    - name: "naglfar-scheduler"
-      args:
+      leaderElect: false
+    profiles:
+    - schedulerName: naglfar-scheduler
+      plugins:
+        preFilter:
+          enabled:
+          - name: "naglfar-scheduler"
+        filter:
+          enabled:
+          - name: "naglfar-scheduler"
+        preBind:
+          enabled:
+          - name: "naglfar-scheduler"
+      pluginConfig:
+      - name: naglfar-scheduler
 ---
 apiVersion: apps/v1
 kind: Deployment
