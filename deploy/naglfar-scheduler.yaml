@@ -151,6 +151,8 @@ metadata:
 data:
   scheduler-config.yaml: |
     apiVersion: kubescheduler.config.k8s.io/v1beta1
+    clientConnection:
+      kubeconfig: "/etc/kubernetes/scheduler.conf"
     kind: KubeSchedulerConfiguration
     leaderElection:
       leaderElect: false
@@ -192,16 +194,32 @@ spec:
         - name: scheduler-config
           configMap:
             name: scheduler-config
+        - hostPath:
+            path: /etc/kubernetes/scheduler.conf
+            type: FileOrCreate
+          name: kubeconfig
       containers:
         - name: naglfar-scheduler-ctrl
-          image: hexilee/naglfar-scheduler:latest
+          image: naglfar-scheduler:latest
           imagePullPolicy: IfNotPresent
           args:
+            - /bin/kube-scheduler
+            - --authentication-kubeconfig=/etc/kubernetes/scheduler.conf
+            - --authorization-kubeconfig=/etc/kubernetes/scheduler.conf
             - --config=/etc/kubernetes/scheduler-config.yaml
+            - --bind-address=127.0.0.1
+            - --kubeconfig=/etc/kubernetes/scheduler.conf
+            - --leader-elect=false
+            - --port=0
             - --v=3
           resources:
             requests:
-              cpu: "50m"
+              cpu: "100m"
           volumeMounts:
             - name: scheduler-config
-              mountPath: /etc/kubernetes
+              mountPath: /etc/kubernetes/scheduler-config.yaml
+              subPath: scheduler-config.yaml
+            - name: kubeconfig
+              mountPath: /etc/kubernetes/scheduler.conf
+              readOnly: true
+

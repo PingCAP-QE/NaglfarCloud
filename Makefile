@@ -15,6 +15,9 @@ test: fmt vet
 scheduler: mod format
 	go build -o bin/scheduler main.go
 
+clean:
+	rm -rf bin
+
 format: vet fmt
 
 # Run go fmt against code
@@ -30,13 +33,13 @@ mod:
 	GO111MODULE=on go mod tidy
 	@git diff --exit-code -- go.sum go.mod
 
-image: scheduler
-	docker build -t hexilee/naglfar-scheduler .
+image:
+	DOCKER_BUILDKIT=0 docker build -t naglfar-scheduler .
 
-deploy: image
+deploy: deploy/naglfar-scheduler.yaml
 	kubectl apply -f deploy/naglfar-scheduler.yaml
 
-upgrade: deploy
+upgrade: image deploy
 	kubectl rollout restart deployment/naglfar-scheduler -n kube-system
 
 destroy:
