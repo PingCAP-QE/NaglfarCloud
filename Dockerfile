@@ -1,5 +1,16 @@
-FROM alpine:3.13
+# syntax = docker/dockerfile:1.0-experimental
+FROM golang:alpine3.10
+RUN apk add --no-cache gcc libc-dev make bash git
 
-RUN mkdir /lib64 && ln -s /lib/libc.musl-x86_64.so.1 /lib64/ld-linux-x86-64.so.2
-COPY bin/scheduler /
-ENTRYPOINT ["/scheduler"]
+WORKDIR /src
+COPY . .
+#RUN --mount=type=cache,id=tipocket_go_pkg,target=/go/pkg \
+#    --mount=type=cache,id=tipocket_go_cache,target=/root/.cache/go-build \
+#    --mount=type=tmpfs,id=tipocket_go_src,target=/go/src/ make clean && make scheduler
+RUN make clean && make scheduler
+
+FROM alpine:3.10
+
+COPY --from=0 src/bin/scheduler /bin/kube-scheduler
+WORKDIR /bin
+CMD ["kube-scheduler"]
