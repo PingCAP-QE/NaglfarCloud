@@ -34,7 +34,7 @@ mod:
 	@git diff --exit-code -- go.sum go.mod
 
 image:
-	DOCKER_BUILDKIT=0 docker build -t naglfar-scheduler .
+	DOCKER_BUILDKIT=1 docker build -t naglfar-scheduler .
 
 deploy: deploy/naglfar-scheduler.yaml
 	kubectl apply -f deploy/naglfar-scheduler.yaml

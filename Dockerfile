@@ -4,10 +4,11 @@ RUN apk add --no-cache gcc libc-dev make bash git
 
 WORKDIR /src
 COPY . .
-#RUN --mount=type=cache,id=tipocket_go_pkg,target=/go/pkg \
-#    --mount=type=cache,id=tipocket_go_cache,target=/root/.cache/go-build \
-#    --mount=type=tmpfs,id=tipocket_go_src,target=/go/src/ make clean && make scheduler
-RUN make clean && make scheduler
+
+RUN rm -rf /go/src/
+RUN --mount=type=cache,id=tipocket_go_pkg,target=/go/pkg \
+    --mount=type=cache,id=tipocket_go_cache,target=/root/.cache/go-build \
+    --mount=type=tmpfs,id=tipocket_go_src,target=/go/src/ make clean && make scheduler
 
 FROM alpine:3.10
 
