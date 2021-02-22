@@ -17,13 +17,27 @@ package scheduler
 import (
 	"time"
 
+	informerv1 "k8s.io/client-go/informers/core/v1"
+	listerv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 )
 
 type PodGroupManager struct {
 	// snapshotSharedLister is pod shared list
 	snapshotSharedLister framework.SharedLister
+
 	// scheduleTimeout is the default time when group scheduling.
 	// If podgroup's ScheduleTimeoutSeconds set, that would be used.
 	scheduleTimeout time.Duration
+
+	// podLister is pod lister
+	podLister listerv1.PodLister
+}
+
+func NewPodGroupManager(snapshotSharedLister framework.SharedLister, scheduleTimeout time.Duration, podInformer informerv1.PodInformer) *PodGroupManager {
+	return &PodGroupManager{
+		snapshotSharedLister: snapshotSharedLister,
+		scheduleTimeout:      scheduleTimeout,
+		podLister:            podInformer.Lister(),
+	}
 }

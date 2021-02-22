@@ -19,14 +19,23 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/informers"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	schedulerRuntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 )
 
+// Name is the name of naglfar scheduler
 const Name = "naglfar-scheduler"
+
+const (
+	// PodGroupLabel is the default label of naglfar scheduler
+	PodGroupLabel = "podgroup.naglfar"
+)
 
 var (
 	_ framework.QueueSortPlugin  = &Scheduler{}
@@ -43,8 +52,9 @@ type Args struct {
 }
 
 type Scheduler struct {
-	args   *Args
-	handle framework.Handle
+	args            *Args
+	handle          framework.Handle
+	podGroupManager *PodGroupManager
 }
 
 func (s *Scheduler) Name() string {
@@ -103,11 +113,20 @@ func New(cfg runtime.Object, f framework.Handle) (framework.Plugin, error) {
 		return nil, err
 	}
 
-	f.SnapshotSharedLister().NodeInfos()
+	fieldSelector, err := fields.ParseSelector(",status.phase!=" + string(v1.PodSucceeded) + ",status.phase!=" + string(v1.PodFailed))
+	if err != nil {
+		klog.Fatalf("ParseSelector failed %+v", err)
+	}
+
+	informerFactory := informers.NewSharedInformerFactoryWithOptions(f.ClientSet(), 0, informers.WithTweakListOptions(func(opt *metav1.ListOptions) {
+		opt.LabelSelector = PodGroupLabel
+		opt.FieldSelector = fieldSelector.String()
+	}))
 
 	klog.V(3).Infof("get plugin config args: %+v", args)
 	return &Scheduler{
-		args:   args,
-		handle: f,
+		args:            args,
+		handle:          f,
+		podGroupManager: NewPodGroupManager(f.SnapshotSharedLister(), args.ScheduleTimeout, informerFactory.Core().V1().Pods()),
 	}, nil
 }
