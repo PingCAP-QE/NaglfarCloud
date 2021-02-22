@@ -159,17 +159,27 @@ data:
     profiles:
     - schedulerName: naglfar-scheduler
       plugins:
+        queueSort:
+          enabled:
+            - name: naglfar-scheduler
+          disabled:
+            - name: "*"
         preFilter:
           enabled:
-          - name: "naglfar-scheduler"
-        filter:
+            - name: naglfar-scheduler
+        permit:
           enabled:
-          - name: "naglfar-scheduler"
-        preBind:
+            - name: naglfar-scheduler
+        reserve:
           enabled:
-          - name: "naglfar-scheduler"
+            - name: naglfar-scheduler
+        postBind:
+          enabled:
+            - name: naglfar-scheduler
       pluginConfig:
       - name: naglfar-scheduler
+        args:
+          scheduleTimeout: 10
 ---
 apiVersion: apps/v1
 kind: Deployment

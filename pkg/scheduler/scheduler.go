@@ -16,9 +16,11 @@ package scheduler
 
 import (
 	"context"
+	"time"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	schedulerRuntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
@@ -27,12 +29,18 @@ import (
 const Name = "naglfar-scheduler"
 
 var (
-	_ framework.PreFilterPlugin = &Scheduler{}
-	_ framework.FilterPlugin    = &Scheduler{}
-	_ framework.PreBindPlugin   = &Scheduler{}
+	_ framework.QueueSortPlugin  = &Scheduler{}
+	_ framework.PreFilterPlugin  = &Scheduler{}
+	_ framework.PostFilterPlugin = &Scheduler{}
+	_ framework.PermitPlugin     = &Scheduler{}
+	_ framework.ReservePlugin    = &Scheduler{}
+	_ framework.PostBindPlugin   = &Scheduler{}
 )
 
-type Args struct{}
+type Args struct {
+	// ScheduleTimeout is the wait duration in scheduling
+	ScheduleTimeout time.Duration `yaml:"scheduleTimeout" json:"scheduleTimeout"`
+}
 
 type Scheduler struct {
 	args   *Args
@@ -41,6 +49,10 @@ type Scheduler struct {
 
 func (s *Scheduler) Name() string {
 	return Name
+}
+
+func (s *Scheduler) Less(pod1, pod2 *framework.QueuedPodInfo) bool {
+	return true
 }
 
 func (s *Scheduler) PreFilter(ctx context.Context, state *framework.CycleState, pod *v1.Pod) *framework.Status {
@@ -52,18 +64,35 @@ func (s *Scheduler) PreFilterExtensions() framework.PreFilterExtensions {
 	return nil
 }
 
-func (s *Scheduler) Filter(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
-	klog.V(3).Infof("filter pod: %v, node: %+v", pod.Name, nodeInfo.Node())
-	return framework.NewStatus(framework.Success, "")
+func (s *Scheduler) PostFilter(ctx context.Context, state *framework.CycleState, pod *v1.Pod,
+	filteredNodeStatusMap framework.NodeToStatusMap) (*framework.PostFilterResult, *framework.Status) {
+	return nil, nil
 }
 
-func (s *Scheduler) PreBind(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) *framework.Status {
-	if nodeInfo, err := s.handle.SnapshotSharedLister().NodeInfos().Get(nodeName); err != nil {
-		return framework.AsStatus(err)
-	} else {
-		klog.V(3).Infof("prebind node info: %+v", nodeInfo.Node())
-		return framework.NewStatus(framework.Success, "")
+func (s *Scheduler) Permit(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) (*framework.Status, time.Duration) {
+	return framework.NewStatus(framework.Success, ""), 0
+}
+
+// Reserve is the functions invoked by the framework at "reserve" extension point.
+func (s *Scheduler) Reserve(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) *framework.Status {
+	return nil
+}
+
+// Unreserve rejects all other Pods in the PodGroup when one of the pods in the group times out.
+func (s *Scheduler) Unreserve(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) {
+}
+
+// PostBind is called after a pod is successfully bound. These plugins are used update PodGroup when pod is bound.
+func (s *Scheduler) PostBind(ctx context.Context, _ *framework.CycleState, pod *v1.Pod, nodeName string) {
+}
+
+// rejectPod rejects pod in cache
+func (s *Scheduler) rejectPod(uid types.UID) {
+	waitingPod := s.handle.GetWaitingPod(uid)
+	if waitingPod == nil {
+		return
 	}
+	waitingPod.Reject(Name)
 }
 
 //type PluginFactory = func(configuration runtime.Object, f framework.Handle) (framework.Plugin, error)
@@ -73,6 +102,8 @@ func New(cfg runtime.Object, f framework.Handle) (framework.Plugin, error) {
 	if err := schedulerRuntime.DecodeInto(cfg, args); err != nil {
 		return nil, err
 	}
+
+	f.SnapshotSharedLister().NodeInfos()
 
 	klog.V(3).Infof("get plugin config args: %+v", args)
 	return &Scheduler{
