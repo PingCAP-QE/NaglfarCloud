@@ -1,0 +1,7 @@
+domain: pingcap.com
+repo: github.com/PingCAP-QE/NaglfarCloud
+resources:
+- group: naglfar
+  kind: PodGroup
+  version: v1
+version: "2"
