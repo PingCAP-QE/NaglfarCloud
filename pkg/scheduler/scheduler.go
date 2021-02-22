@@ -32,11 +32,6 @@ import (
 // Name is the name of naglfar scheduler
 const Name = "naglfar-scheduler"
 
-const (
-	// PodGroupLabel is the default label of naglfar scheduler
-	PodGroupLabel = "podgroup.naglfar"
-)
-
 var (
 	_ framework.QueueSortPlugin  = &Scheduler{}
 	_ framework.PreFilterPlugin  = &Scheduler{}
@@ -66,7 +61,7 @@ func (s *Scheduler) Less(pod1, pod2 *framework.QueuedPodInfo) bool {
 }
 
 func (s *Scheduler) PreFilter(ctx context.Context, state *framework.CycleState, pod *v1.Pod) *framework.Status {
-	klog.V(3).Infof("prefilter pod: %v", pod.Name)
+	// Do nothing
 	return framework.NewStatus(framework.Success, "")
 }
 

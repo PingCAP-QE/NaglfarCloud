@@ -15,12 +15,19 @@
 package scheduler
 
 import (
+	"context"
+	"fmt"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	informerv1 "k8s.io/client-go/informers/core/v1"
 	listerv1 "k8s.io/client-go/listers/core/v1"
+	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 )
+
+// PodGroupLabel is the default label of naglfar scheduler
+const PodGroupLabel = "podgroup.naglfar"
 
 type PodGroupManager struct {
 	// snapshotSharedLister is pod shared list
@@ -40,4 +47,70 @@ func NewPodGroupManager(snapshotSharedLister framework.SharedLister, scheduleTim
 		scheduleTimeout:      scheduleTimeout,
 		podLister:            podInformer.Lister(),
 	}
+}
+
+// PreFilter filters out a pod if it
+func (mgr *PodGroupManager) PreFilter(ctx context.Context, pod *corev1.Pod) error {
+	klog.V(5).Infof("Pre-filter %v", pod.Name)
+	return nil
+}
+
+// Permit permits a pod to run
+func (mgr *PodGroupManager) Permit(ctx context.Context, pod *corev1.Pod, nodeName string) (bool, error) {
+	pgName := PodGroup(pod)
+
+	if pgName == "" {
+		// no group
+		return true, nil
+	}
+
+	assigned := mgr.CalculateAssignedPods(pod.Namespace, pgName)
+	// The number of pods that have been assigned nodes is calculated from the snapshot.
+	// The current pod in not included in the snapshot during the current scheduling cycle.
+	ready := assigned+1 >= mgr.CalculateAllPods(pod.Namespace, pgName)
+	if ready {
+		return true, nil
+	}
+	return false, fmt.Errorf("waiting")
+}
+
+// PodGroup returns the name of PodGroup that a Pod belongs to.
+func PodGroup(pod *corev1.Pod) string {
+	return pod.Labels[PodGroupLabel]
+}
+
+func (mgr *PodGroupManager) CalculateAllPods(namespace, pgName string) int {
+	// TODO: complete label selector
+	pods, err := mgr.podLister.List(nil)
+	if err != nil {
+		klog.Errorf("Cannot list pods from frameworkHandle: %v", err)
+		return 0
+	}
+	var count int
+	for _, pod := range pods {
+		if PodGroup(pod) == pgName && pod.Namespace == namespace {
+			count++
+		}
+	}
+
+	return count
+}
+
+func (mgr *PodGroupManager) CalculateAssignedPods(namespace, pgName string) int {
+	nodeInfos, err := mgr.snapshotSharedLister.NodeInfos().List()
+	if err != nil {
+		klog.Errorf("Cannot get nodeInfos from frameworkHandle: %v", err)
+		return 0
+	}
+	var count int
+	for _, nodeInfo := range nodeInfos {
+		for _, podInfo := range nodeInfo.Pods {
+			pod := podInfo.Pod
+			if PodGroup(pod) == pgName && pod.Namespace == namespace && pod.Spec.NodeName != "" {
+				count++
+			}
+		}
+	}
+
+	return count
 }
