@@ -16,6 +16,7 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -24,9 +25,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	schedulerRuntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
+
+	"github.com/PingCAP-QE/NaglfarCloud/pkg/client"
 )
 
 // Name is the name of naglfar scheduler
@@ -44,6 +48,8 @@ var (
 type Args struct {
 	// ScheduleTimeout is the wait duration in scheduling
 	ScheduleTimeout time.Duration `yaml:"scheduleTimeout" json:"scheduleTimeout"`
+
+	KubeConfig string `yaml:"kubeConfig" json:"kubeConfig"`
 }
 
 type Scheduler struct {
@@ -108,6 +114,13 @@ func New(cfg runtime.Object, f framework.Handle) (framework.Plugin, error) {
 		return nil, err
 	}
 
+	conf, err := clientcmd.BuildConfigFromFlags("", args.KubeConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to init rest.Config: %v", err)
+	}
+
+	schedulingClient := client.NewForConfigOrDie(conf)
+
 	fieldSelector, err := fields.ParseSelector(",status.phase!=" + string(v1.PodSucceeded) + ",status.phase!=" + string(v1.PodFailed))
 	if err != nil {
 		klog.Fatalf("ParseSelector failed %+v", err)
@@ -122,6 +135,6 @@ func New(cfg runtime.Object, f framework.Handle) (framework.Plugin, error) {
 	return &Scheduler{
 		args:            args,
 		handle:          f,
-		podGroupManager: NewPodGroupManager(f.SnapshotSharedLister(), args.ScheduleTimeout, informerFactory.Core().V1().Pods()),
+		podGroupManager: NewPodGroupManager(f.SnapshotSharedLister(), args.ScheduleTimeout, informerFactory.Core().V1().Pods(), schedulingClient),
 	}, nil
 }

@@ -25,6 +25,8 @@ import (
 	listerv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
+
+	"github.com/PingCAP-QE/NaglfarCloud/pkg/client"
 )
 
 // PodGroupLabel is the default label of naglfar scheduler
@@ -40,13 +42,16 @@ type PodGroupManager struct {
 
 	// podLister is pod lister
 	podLister listerv1.PodLister
+
+	schedulingClient *client.SchedulingClient
 }
 
-func NewPodGroupManager(snapshotSharedLister framework.SharedLister, scheduleTimeout time.Duration, podInformer informerv1.PodInformer) *PodGroupManager {
+func NewPodGroupManager(snapshotSharedLister framework.SharedLister, scheduleTimeout time.Duration, podInformer informerv1.PodInformer, schedulingClient *client.SchedulingClient) *PodGroupManager {
 	return &PodGroupManager{
 		snapshotSharedLister: snapshotSharedLister,
 		scheduleTimeout:      scheduleTimeout,
 		podLister:            podInformer.Lister(),
+		schedulingClient:     schedulingClient,
 	}
 }
 
