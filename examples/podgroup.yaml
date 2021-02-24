@@ -1,0 +1,4 @@
+apiVersion: naglfar.pingcap.com/v1
+kind: PodGroup
+metadata:
+  name: tidb-cluster

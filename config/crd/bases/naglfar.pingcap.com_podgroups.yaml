@@ -33,11 +33,6 @@ spec:
           type: object
         spec:
           description: PodGroupSpec defines the desired state of PodGroup
-          properties:
-            foo:
-              description: Foo is an example field of PodGroup. Edit PodGroup_types.go
-                to remove/update
-              type: string
           type: object
         status:
           description: PodGroupStatus defines the observed state of PodGroup

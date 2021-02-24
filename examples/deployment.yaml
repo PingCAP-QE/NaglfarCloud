@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: test-scheduler
+  name: test
 spec:
   replicas: 1
   selector:
@@ -11,6 +11,7 @@ spec:
     metadata:
       labels:
         app: test-scheduler
+        podgroup.naglfar: tidb-cluster
     spec:
       schedulerName: naglfar-scheduler
       containers:

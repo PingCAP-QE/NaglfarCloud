@@ -20,12 +20,14 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	informerv1 "k8s.io/client-go/informers/core/v1"
 	listerv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
+	apiv1 "github.com/PingCAP-QE/NaglfarCloud/pkg/api/v1"
 	"github.com/PingCAP-QE/NaglfarCloud/pkg/client"
 )
 
@@ -33,6 +35,7 @@ import (
 const PodGroupLabel = "podgroup.naglfar"
 
 type PodGroupManager struct {
+	ctx context.Context
 	// snapshotSharedLister is pod shared list
 	snapshotSharedLister framework.SharedLister
 
@@ -48,6 +51,7 @@ type PodGroupManager struct {
 
 func NewPodGroupManager(snapshotSharedLister framework.SharedLister, scheduleTimeout time.Duration, podInformer informerv1.PodInformer, schedulingClient *client.SchedulingClient) *PodGroupManager {
 	return &PodGroupManager{
+		ctx:                  context.Background(),
 		snapshotSharedLister: snapshotSharedLister,
 		scheduleTimeout:      scheduleTimeout,
 		podLister:            podInformer.Lister(),
@@ -63,25 +67,32 @@ func (mgr *PodGroupManager) PreFilter(ctx context.Context, pod *corev1.Pod) erro
 
 // Permit permits a pod to run
 func (mgr *PodGroupManager) Permit(ctx context.Context, pod *corev1.Pod, nodeName string) (bool, error) {
-	pgName := PodGroup(pod)
+	podGroup, err := mgr.PodGroup(pod)
 
-	if pgName == "" {
-		// no group
-		return true, nil
+	if err != nil {
+		return false, fmt.Errorf("cannot get pod group: %v", err)
 	}
 
-	assigned := mgr.CalculateAssignedPods(pod.Namespace, pgName)
+	if podGroup == nil {
+		return true, fmt.Errorf("free pod %s/%s, permmited", pod.Namespace, pod.Name)
+	}
+
+	assigned := mgr.CalculateAssignedPods(pod.Namespace, podGroup.Name)
 	// The number of pods that have been assigned nodes is calculated from the snapshot.
 	// The current pod in not included in the snapshot during the current scheduling cycle.
-	if assigned+1 < mgr.CalculateAllPods(pod.Namespace, pgName) {
+	if assigned+1 < mgr.CalculateAllPods(pod.Namespace, podGroup.Name) {
 		return false, fmt.Errorf("waiting")
 	}
 	return true, nil
 }
 
-// PodGroup returns the name of PodGroup that a Pod belongs to.
-func PodGroup(pod *corev1.Pod) string {
-	return pod.Labels[PodGroupLabel]
+// PodGroup returns the PodGroup that a Pod belongs to.
+func (mgr *PodGroupManager) PodGroup(pod *corev1.Pod) (*apiv1.PodGroup, error) {
+	name := pod.Labels[PodGroupLabel]
+	if name == "" {
+		return nil, nil
+	}
+	return mgr.schedulingClient.PodGroups(pod.Namespace).Get(mgr.ctx, name, metav1.GetOptions{})
 }
 
 func (mgr *PodGroupManager) CalculateAllPods(namespace, pgName string) int {
@@ -104,7 +115,7 @@ func (mgr *PodGroupManager) CalculateAssignedPods(namespace, pgName string) int 
 	for _, nodeInfo := range nodeInfos {
 		for _, podInfo := range nodeInfo.Pods {
 			pod := podInfo.Pod
-			if PodGroup(pod) == pgName && pod.Namespace == namespace && pod.Spec.NodeName != "" {
+			if pod.Labels[PodGroupLabel] == pgName && pod.Namespace == namespace && pod.Spec.NodeName != "" {
 				count++
 			}
 		}

@@ -68,6 +68,14 @@ func (s *Scheduler) Less(pod1, pod2 *framework.QueuedPodInfo) bool {
 
 func (s *Scheduler) PreFilter(ctx context.Context, state *framework.CycleState, pod *v1.Pod) *framework.Status {
 	// Do nothing
+	pg, err := s.podGroupManager.PodGroup(pod)
+	if err != nil {
+		return framework.NewStatus(framework.Error, err.Error())
+	}
+
+	if pg != nil {
+		klog.V(3).Infof("podgroup: %v", pg)
+	}
 	return framework.NewStatus(framework.Success, "")
 }
 
