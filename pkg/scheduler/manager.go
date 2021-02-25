@@ -125,3 +125,12 @@ func (mgr *PodGroupManager) CalculateAssignedPods(namespace, pgName string) int 
 
 	return count
 }
+
+func (mgr *PodGroupManager) GetCreationTimestamp(pod *corev1.Pod, defaultTime time.Time) time.Time {
+	pg, _ := mgr.PodGroup(pod)
+	if pg == nil {
+		return defaultTime
+	}
+
+	return pg.CreationTimestamp.Time
+}

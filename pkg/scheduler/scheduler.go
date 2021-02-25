@@ -61,7 +61,14 @@ func (s *Scheduler) Name() string {
 }
 
 func (s *Scheduler) Less(pod1, pod2 *framework.QueuedPodInfo) bool {
-	return true
+	time1 := s.podGroupManager.GetCreationTimestamp(pod1.Pod, pod1.InitialAttemptTimestamp)
+	time2 := s.podGroupManager.GetCreationTimestamp(pod2.Pod, pod2.InitialAttemptTimestamp)
+
+	if time1.Equal(time2) {
+		return pod1.Pod.Labels[PodGroupLabel] < pod2.Pod.Labels[PodGroupLabel]
+	}
+
+	return time1.Before(time2)
 }
 
 func (s *Scheduler) PreFilter(ctx context.Context, state *framework.CycleState, pod *v1.Pod) *framework.Status {
