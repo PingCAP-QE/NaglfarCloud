@@ -34,6 +34,8 @@ import (
 // PodGroupLabel is the default label of naglfar scheduler
 const PodGroupLabel = "podgroup.naglfar"
 
+var ErrorWaiting = fmt.Errorf("waiting")
+
 type PodGroupManager struct {
 	ctx context.Context
 	// snapshotSharedLister is pod shared list
@@ -66,24 +68,24 @@ func (mgr *PodGroupManager) PreFilter(ctx context.Context, pod *corev1.Pod) erro
 }
 
 // Permit permits a pod to run
-func (mgr *PodGroupManager) Permit(ctx context.Context, pod *corev1.Pod, nodeName string) (bool, error) {
+func (mgr *PodGroupManager) Permit(ctx context.Context, pod *corev1.Pod, nodeName string) (bool, *apiv1.PodGroup, error) {
 	podGroup, err := mgr.PodGroup(pod)
 
 	if err != nil {
-		return false, fmt.Errorf("cannot get pod group: %v", err)
+		return false, podGroup, fmt.Errorf("cannot get pod group: %v", err)
 	}
 
 	if podGroup == nil {
-		return true, fmt.Errorf("free pod %s/%s, permmited", pod.Namespace, pod.Name)
+		return true, podGroup, nil
 	}
 
 	assigned := mgr.CalculateAssignedPods(pod.Namespace, podGroup.Name)
 	// The number of pods that have been assigned nodes is calculated from the snapshot.
 	// The current pod in not included in the snapshot during the current scheduling cycle.
 	if assigned+1 < mgr.CalculateAllPods(pod.Namespace, podGroup.Name) {
-		return false, fmt.Errorf("waiting")
+		return false, podGroup, ErrorWaiting
 	}
-	return true, nil
+	return true, podGroup, nil
 }
 
 // PodGroup returns the PodGroup that a Pod belongs to.

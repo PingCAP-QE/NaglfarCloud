@@ -86,7 +86,36 @@ func (s *Scheduler) PostFilter(ctx context.Context, state *framework.CycleState,
 	return nil, nil
 }
 
+// Permit is the functions invoked by the framework at "Permit" extension point.
 func (s *Scheduler) Permit(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) (*framework.Status, time.Duration) {
+	waitTime := s.args.ScheduleTimeout
+	ready, podGroup, err := s.podGroupManager.Permit(ctx, pod, nodeName)
+	if err != nil {
+		if podGroup == nil {
+			return framework.NewStatus(framework.UnschedulableAndUnresolvable, "PodGroup not found"), waitTime
+		}
+		if err == ErrorWaiting {
+			klog.Infof("Pod: %s/%s is waiting to be scheduled to node: %v", pod.Namespace, pod.Name, nodeName)
+			return framework.NewStatus(framework.Wait, ""), waitTime
+		}
+		klog.Infof("Permit error %v", err)
+		return framework.NewStatus(framework.Unschedulable, err.Error()), waitTime
+	}
+
+	klog.V(5).Infof("Pod requires podgroup %s", pod.Labels[PodGroupLabel])
+	if !ready {
+		return framework.NewStatus(framework.Wait, ""), waitTime
+	}
+
+	s.handle.IterateOverWaitingPods(func(waitingPod framework.WaitingPod) {
+		pod := waitingPod.GetPod()
+		if pod.Namespace == podGroup.Namespace && pod.Labels[PodGroupLabel] == podGroup.Name {
+			klog.V(3).Infof("Permit allows the pod: %s/%s", pod.Namespace, pod.Name)
+			waitingPod.Allow(s.Name())
+		}
+	})
+
+	klog.V(3).Infof("Permit allows the pod: %s/%s", pod.Namespace, pod.Name)
 	return framework.NewStatus(framework.Success, ""), 0
 }
 
