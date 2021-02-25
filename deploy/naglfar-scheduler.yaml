@@ -189,7 +189,6 @@ data:
       - name: naglfar-scheduler
         args:
           scheduleTimeout: 10
-          kubeConfig: "/etc/kubernetes/scheduler.conf"
 ---
 apiVersion: apps/v1
 kind: Deployment

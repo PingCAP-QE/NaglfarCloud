@@ -48,8 +48,6 @@ var (
 type Args struct {
 	// ScheduleTimeout is the wait duration in scheduling
 	ScheduleTimeout time.Duration `yaml:"scheduleTimeout" json:"scheduleTimeout"`
-
-	KubeConfig string `yaml:"kubeConfig" json:"kubeConfig"`
 }
 
 type Scheduler struct {
@@ -122,7 +120,7 @@ func New(cfg runtime.Object, f framework.Handle) (framework.Plugin, error) {
 		return nil, err
 	}
 
-	conf, err := clientcmd.BuildConfigFromFlags("", args.KubeConfig)
+	conf, err := clientcmd.BuildConfigFromFlags("", "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to init rest.Config: %v", err)
 	}
