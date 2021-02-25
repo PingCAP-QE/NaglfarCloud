@@ -3,4 +3,4 @@ kind: PodGroup
 metadata:
   name: tidb-cluster
 spec:
-  subgroups: [tidb, tikv, pd]
+  minMember: 3

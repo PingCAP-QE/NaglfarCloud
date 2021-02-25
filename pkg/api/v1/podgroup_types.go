@@ -27,6 +27,11 @@ import (
 type PodGroupSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+
+	// MinMember defines the minimal number of members/tasks to run the pod group;
+	// if there's not enough resources to start all tasks, the scheduler
+	// will not start anyone.
+	MinMember int32 `json:"minMember,omitempty"`
 }
 
 // PodGroupStatus defines the observed state of PodGroup

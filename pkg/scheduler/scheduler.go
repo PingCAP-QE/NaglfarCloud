@@ -31,6 +31,7 @@ import (
 	schedulerRuntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 
 	"github.com/PingCAP-QE/NaglfarCloud/pkg/client"
+	"github.com/PingCAP-QE/NaglfarCloud/pkg/util"
 )
 
 // Name is the name of naglfar scheduler
@@ -47,7 +48,7 @@ var (
 
 type Args struct {
 	// ScheduleTimeout is the wait duration in scheduling
-	ScheduleTimeout time.Duration `yaml:"scheduleTimeout" json:"scheduleTimeout"`
+	ScheduleTimeout util.Duration `yaml:"scheduleTimeout" json:"scheduleTimeout"`
 }
 
 type Scheduler struct {
@@ -95,7 +96,7 @@ func (s *Scheduler) PostFilter(ctx context.Context, state *framework.CycleState,
 
 // Permit is the functions invoked by the framework at "Permit" extension point.
 func (s *Scheduler) Permit(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) (*framework.Status, time.Duration) {
-	waitTime := s.args.ScheduleTimeout
+	waitTime := s.args.ScheduleTimeout.Unwrap()
 	ready, podGroup, err := s.podGroupManager.Permit(ctx, pod, nodeName)
 	if err != nil {
 		if podGroup == nil {
@@ -156,6 +157,10 @@ func New(cfg runtime.Object, f framework.Handle) (framework.Plugin, error) {
 		return nil, err
 	}
 
+	if _, err := args.ScheduleTimeout.Parse(); err != nil {
+		return nil, fmt.Errorf("invalid ScheduleTimeout: %s", err.Error())
+	}
+
 	conf, err := clientcmd.BuildConfigFromFlags("", "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to init rest.Config: %v", err)
@@ -177,6 +182,6 @@ func New(cfg runtime.Object, f framework.Handle) (framework.Plugin, error) {
 	return &Scheduler{
 		args:            args,
 		handle:          f,
-		podGroupManager: NewPodGroupManager(f.SnapshotSharedLister(), args.ScheduleTimeout, informerFactory.Core().V1().Pods(), schedulingClient),
+		podGroupManager: NewPodGroupManager(f.SnapshotSharedLister(), args.ScheduleTimeout.Unwrap(), informerFactory.Core().V1().Pods(), schedulingClient),
 	}, nil
 }

@@ -21,7 +21,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	informerv1 "k8s.io/client-go/informers/core/v1"
 	listerv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/klog/v2"
@@ -82,7 +81,7 @@ func (mgr *PodGroupManager) Permit(ctx context.Context, pod *corev1.Pod, nodeNam
 	assigned := mgr.CalculateAssignedPods(pod.Namespace, podGroup.Name)
 	// The number of pods that have been assigned nodes is calculated from the snapshot.
 	// The current pod in not included in the snapshot during the current scheduling cycle.
-	if assigned+1 < mgr.CalculateAllPods(pod.Namespace, podGroup.Name) {
+	if assigned+1 < int(podGroup.Spec.MinMember) {
 		return false, podGroup, ErrorWaiting
 	}
 	return true, podGroup, nil
@@ -95,16 +94,6 @@ func (mgr *PodGroupManager) PodGroup(pod *corev1.Pod) (*apiv1.PodGroup, error) {
 		return nil, nil
 	}
 	return mgr.schedulingClient.PodGroups(pod.Namespace).Get(mgr.ctx, name, metav1.GetOptions{})
-}
-
-func (mgr *PodGroupManager) CalculateAllPods(namespace, pgName string) int {
-	pods, err := mgr.podLister.Pods(namespace).List(labels.SelectorFromSet(labels.Set(map[string]string{PodGroupLabel: pgName})))
-	if err != nil {
-		klog.Errorf("Cannot list pods from frameworkHandle: %v", err)
-		return 0
-	}
-
-	return len(pods)
 }
 
 func (mgr *PodGroupManager) CalculateAssignedPods(namespace, pgName string) int {

@@ -33,6 +33,13 @@ spec:
           type: object
         spec:
           description: PodGroupSpec defines the desired state of PodGroup
+          properties:
+            minMember:
+              description: MinMember defines the minimal number of members/tasks to
+                run the pod group; if there's not enough resources to start all tasks,
+                the scheduler will not start anyone.
+              format: int32
+              type: integer
           type: object
         status:
           description: PodGroupStatus defines the observed state of PodGroup

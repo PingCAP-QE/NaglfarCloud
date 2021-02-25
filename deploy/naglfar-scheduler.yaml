@@ -188,7 +188,7 @@ data:
       pluginConfig:
       - name: naglfar-scheduler
         args:
-          scheduleTimeout: 10
+          scheduleTimeout: 10s
 ---
 apiVersion: apps/v1
 kind: Deployment
