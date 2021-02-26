@@ -32,6 +32,12 @@ type PodGroupSpec struct {
 	// if there's not enough resources to start all tasks, the scheduler
 	// will not start anyone.
 	MinMember int32 `json:"minMember,omitempty"`
+
+	// +optional
+	Exclusive *bool `json:"exclusive,omitempty"`
+
+	// +optional
+	SubGroups map[string]PodGroupSpec `json:"subGroups,omitempty"`
 }
 
 // PodGroupStatus defines the observed state of PodGroup
