@@ -52,10 +52,13 @@ image:
 upload: image
 	minikube cache add naglfar-scheduler
 
-deploy: upload deploy/naglfar-scheduler.yaml
+fresh:
+	minikube cache delete naglfar-scheduler
+
+deploy: install upload deploy/naglfar-scheduler.yaml
 	kubectl apply -f deploy/naglfar-scheduler.yaml
 
-upgrade: upload deploy
+upgrade: fresh deploy
 	kubectl rollout restart deployment/naglfar-scheduler -n kube-system
 
 destroy:
