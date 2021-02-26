@@ -129,12 +129,12 @@ func (s *Scheduler) PostFilter(ctx context.Context, state *framework.CycleState,
 // indicating the rank of the node. All scoring plugins must return success or
 // the pod will be rejected.
 func (s *Scheduler) Score(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) (int64, *framework.Status) {
-	podGroup, err := s.podGroupManager.PodGroup(pod)
+	super, _, err := s.podGroupManager.PodGroups(pod)
 	if err != nil {
 		return 0, framework.NewStatus(framework.Error, fmt.Sprintf("cannot get pod group: %s", err.Error()))
 	}
 
-	if podGroup != nil {
+	if super != nil {
 		node, err := s.podGroupManager.snapshotSharedLister.NodeInfos().Get(nodeName)
 		if err != nil {
 			klog.Errorf("Cannot get nodeInfos from frameworkHandle: %v", err)
@@ -142,7 +142,8 @@ func (s *Scheduler) Score(ctx context.Context, state *framework.CycleState, pod 
 		}
 
 		for _, friend := range node.Pods {
-			if friend.Pod.Namespace == podGroup.Namespace && friend.Pod.Labels[PodGroupLabel] == podGroup.Name {
+			names := GroupNames(friend.Pod)
+			if friend.Pod.Namespace == super.Namespace && len(names) > 0 && names[0] == super.Name {
 				return 100, framework.NewStatus(framework.Success, "")
 			}
 		}
@@ -159,9 +160,10 @@ func (s *Scheduler) ScoreExtensions() framework.ScoreExtensions {
 // Permit is the functions invoked by the framework at "Permit" extension point.
 func (s *Scheduler) Permit(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) (*framework.Status, time.Duration) {
 	waitTime := s.args.ScheduleTimeout.Unwrap()
-	ready, podGroup, err := s.podGroupManager.Permit(ctx, pod, nodeName)
+	ready, super, _, err := s.podGroupManager.Permit(ctx, pod, nodeName)
+	path := GroupPath(pod)
 	if err != nil {
-		if podGroup == nil {
+		if super == nil {
 			return framework.NewStatus(framework.UnschedulableAndUnresolvable, "PodGroup not found"), waitTime
 		}
 		if err == ErrorWaiting {
@@ -172,14 +174,14 @@ func (s *Scheduler) Permit(ctx context.Context, state *framework.CycleState, pod
 		return framework.NewStatus(framework.Unschedulable, err.Error()), waitTime
 	}
 
-	klog.Infof("Pod requires podgroup %s", pod.Labels[PodGroupLabel])
+	klog.Infof("Pod requires podgroup %s", GroupPath(pod))
 	if !ready {
 		return framework.NewStatus(framework.Wait, ""), waitTime
 	}
 
 	s.handle.IterateOverWaitingPods(func(waitingPod framework.WaitingPod) {
 		pod := waitingPod.GetPod()
-		if pod.Namespace == podGroup.Namespace && pod.Labels[PodGroupLabel] == podGroup.Name {
+		if pod.Namespace == super.Namespace && GroupPath(pod) == path {
 			klog.Infof("Permit allows the pod: %s/%s", pod.Namespace, pod.Name)
 			waitingPod.Allow(s.Name())
 		}

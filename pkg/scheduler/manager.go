@@ -17,6 +17,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -67,36 +68,59 @@ func (mgr *PodGroupManager) PreFilter(ctx context.Context, pod *corev1.Pod) erro
 }
 
 // Permit permits a pod to run
-func (mgr *PodGroupManager) Permit(ctx context.Context, pod *corev1.Pod, nodeName string) (bool, *apiv1.PodGroup, error) {
-	podGroup, err := mgr.PodGroup(pod)
+func (mgr *PodGroupManager) Permit(ctx context.Context, pod *corev1.Pod, nodeName string) (bool, *apiv1.PodGroup, *apiv1.PodGroupSpec, error) {
+	super, sub, err := mgr.PodGroups(pod)
 
 	if err != nil {
-		return false, podGroup, fmt.Errorf("cannot get pod group: %v", err)
+		return false, super, sub, fmt.Errorf("cannot get pod group: %v", err)
 	}
 
-	if podGroup == nil {
-		return true, podGroup, nil
+	if super == nil {
+		return true, super, sub, nil
 	}
 
-	assigned := mgr.CalculateAssignedPods(pod.Namespace, podGroup.Name)
+	if sub == nil {
+		names := GroupNames(pod)
+		return false, super, nil, fmt.Errorf("cannot get subgroup: %s", names[len(names)-1])
+	}
+
+	assigned := mgr.CalculateAssignedPods(pod)
 	// The number of pods that have been assigned nodes is calculated from the snapshot.
 	// The current pod in not included in the snapshot during the current scheduling cycle.
-	if assigned+1 < int(podGroup.Spec.MinMember) {
-		return false, podGroup, ErrorWaiting
+	if assigned+1 < int(sub.MinMember) {
+		return false, super, sub, ErrorWaiting
 	}
-	return true, podGroup, nil
+	return true, super, sub, nil
 }
 
-// PodGroup returns the PodGroup that a Pod belongs to.
-func (mgr *PodGroupManager) PodGroup(pod *corev1.Pod) (*apiv1.PodGroup, error) {
-	name := pod.Labels[PodGroupLabel]
-	if name == "" {
-		return nil, nil
+// PodGroups returns the super pod group and sub pod group that a Pod belongs to.
+func (mgr *PodGroupManager) PodGroups(pod *corev1.Pod) (*apiv1.PodGroup, *apiv1.PodGroupSpec, error) {
+	names := GroupNames(pod)
+	if len(names) == 0 {
+		return nil, nil, nil
 	}
-	return mgr.schedulingClient.PodGroups(pod.Namespace).Get(mgr.ctx, name, metav1.GetOptions{})
+
+	super, err := mgr.schedulingClient.PodGroups(pod.Namespace).Get(mgr.ctx, names[0], metav1.GetOptions{})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	sub := &super.Spec
+	for _, name := range names {
+		if sub.SubGroups == nil {
+			return super, nil, nil
+		}
+		spec, ok := sub.SubGroups[name]
+		if !ok {
+			return super, nil, nil
+		}
+		sub = &spec
+	}
+
+	return super, sub, nil
 }
 
-func (mgr *PodGroupManager) CalculateAssignedPods(namespace, pgName string) int {
+func (mgr *PodGroupManager) CalculateAssignedPods(target *corev1.Pod) int {
 	nodeInfos, err := mgr.snapshotSharedLister.NodeInfos().List()
 	if err != nil {
 		klog.Errorf("Cannot get nodeInfos from frameworkHandle: %v", err)
@@ -106,7 +130,12 @@ func (mgr *PodGroupManager) CalculateAssignedPods(namespace, pgName string) int 
 	for _, nodeInfo := range nodeInfos {
 		for _, podInfo := range nodeInfo.Pods {
 			pod := podInfo.Pod
-			if pod.Labels[PodGroupLabel] == pgName && pod.Namespace == namespace && pod.Spec.NodeName != "" {
+			prefixNames := GroupNames(target)
+			names := GroupNames(pod)
+			if len(names) >= len(prefixNames) &&
+				JoinNames(names[0:len(prefixNames)]) == JoinNames(prefixNames) &&
+				pod.Namespace == target.Namespace &&
+				pod.Spec.NodeName != "" {
 				count++
 			}
 		}
@@ -116,10 +145,29 @@ func (mgr *PodGroupManager) CalculateAssignedPods(namespace, pgName string) int 
 }
 
 func (mgr *PodGroupManager) GetCreationTimestamp(pod *corev1.Pod, defaultTime time.Time) time.Time {
-	pg, _ := mgr.PodGroup(pod)
-	if pg == nil {
+	super, _, _ := mgr.PodGroups(pod)
+	if super == nil {
 		return defaultTime
 	}
 
-	return pg.CreationTimestamp.Time
+	return super.CreationTimestamp.Time
+}
+
+// GroupPath is a function to get podgroup label of pod
+func GroupPath(pod *corev1.Pod) string {
+	return strings.TrimSpace(pod.Labels[PodGroupLabel])
+}
+
+// GroupNames is a function to split podgroup by slash
+// return nil if the podgroup label is not set
+func GroupNames(pod *corev1.Pod) []string {
+	path := GroupPath(pod)
+	if path == "" {
+		return nil
+	}
+	return strings.Split(path, "/")
+}
+
+func JoinNames(names []string) string {
+	return strings.Join(names, "/")
 }
