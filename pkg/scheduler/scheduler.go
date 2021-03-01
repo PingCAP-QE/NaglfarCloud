@@ -68,8 +68,8 @@ func (s *Scheduler) Name() string {
 
 // Less are used to sort pods in the scheduling queue.
 func (s *Scheduler) Less(pod1, pod2 *framework.QueuedPodInfo) bool {
-	time1 := s.podGroupManager.GetCreationTimestamp(pod1.Pod, pod1.InitialAttemptTimestamp)
-	time2 := s.podGroupManager.GetCreationTimestamp(pod2.Pod, pod2.InitialAttemptTimestamp)
+	time1 := s.podGroupManager.getCreationTimestamp(pod1.Pod, pod1.InitialAttemptTimestamp)
+	time2 := s.podGroupManager.getCreationTimestamp(pod2.Pod, pod2.InitialAttemptTimestamp)
 
 	if time1.Equal(time2) {
 		return pod1.Pod.Labels[PodGroupLabel] < pod2.Pod.Labels[PodGroupLabel]
@@ -111,7 +111,7 @@ func (s *Scheduler) Filter(ctx context.Context, state *framework.CycleState, pod
 		return framework.NewStatus(framework.Success, "")
 	}
 
-	superPodGroup, subPodGroup, err := s.podGroupManager.PodGroups(pod)
+	superPodGroup, subPodGroup, err := s.podGroupManager.podGroups(pod)
 	if err != nil {
 		return framework.NewStatus(framework.Error, fmt.Sprintf("cannot get pod group of %s/%s: %s", pod.Namespace, pod.Name, err.Error()))
 	}
@@ -121,7 +121,7 @@ func (s *Scheduler) Filter(ctx context.Context, state *framework.CycleState, pod
 			continue
 		}
 
-		super, sub, err := s.podGroupManager.PodGroups(podInfo.Pod)
+		super, sub, err := s.podGroupManager.podGroups(podInfo.Pod)
 		if err != nil {
 			return framework.NewStatus(framework.Error, fmt.Sprintf("cannot get pod group of %s/%s: %s", podInfo.Pod.Namespace, podInfo.Pod.Name, err.Error()))
 		}
@@ -171,7 +171,7 @@ func (s *Scheduler) PostFilter(ctx context.Context, state *framework.CycleState,
 // indicating the rank of the node. All scoring plugins must return success or
 // the pod will be rejected.
 func (s *Scheduler) Score(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) (int64, *framework.Status) {
-	super, _, err := s.podGroupManager.PodGroups(pod)
+	super, _, err := s.podGroupManager.podGroups(pod)
 	if err != nil {
 		return 0, framework.NewStatus(framework.Error, fmt.Sprintf("cannot get pod group: %s", err.Error()))
 	}
@@ -208,7 +208,7 @@ func (s *Scheduler) Permit(ctx context.Context, state *framework.CycleState, pod
 		if super == nil {
 			return framework.NewStatus(framework.UnschedulableAndUnresolvable, "PodGroup not found"), waitTime
 		}
-		if err == ErrorWaiting {
+		if err == errorWaiting {
 			klog.Infof("Pod: %s/%s is waiting to be scheduled to node: %v", pod.Namespace, pod.Name, nodeName)
 			return framework.NewStatus(framework.Wait, ""), waitTime
 		}
@@ -255,6 +255,7 @@ func (s *Scheduler) rejectPod(uid types.UID) {
 	waitingPod.Reject(Name)
 }
 
+// New is the constructor of Scheduler
 func New(cfg runtime.Object, f framework.Handle) (framework.Plugin, error) {
 	args := new(Args)
 
