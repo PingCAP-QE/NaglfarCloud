@@ -107,6 +107,48 @@ func (s *Scheduler) PreFilterExtensions() framework.PreFilterExtensions {
 // nodeInfo object that has some pods removed from it to evaluate the
 // possibility of preempting them to schedule the target pod.
 func (s *Scheduler) Filter(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
+	if isControlledByDaemon(pod) {
+		return framework.NewStatus(framework.Success, "")
+	}
+
+	superPodGroup, subPodGroup, err := s.podGroupManager.PodGroups(pod)
+	if err != nil {
+		return framework.NewStatus(framework.Error, fmt.Sprintf("cannot get pod group of %s/%s: %s", pod.Namespace, pod.Name, err.Error()))
+	}
+
+	for _, podInfo := range nodeInfo.Pods {
+		if isControlledByDaemon(podInfo.Pod) {
+			continue
+		}
+
+		super, sub, err := s.podGroupManager.PodGroups(podInfo.Pod)
+		if err != nil {
+			return framework.NewStatus(framework.Error, fmt.Sprintf("cannot get pod group of %s/%s: %s", podInfo.Pod.Namespace, podInfo.Pod.Name, err.Error()))
+		}
+
+		if super == nil {
+			if superPodGroup != nil && *subPodGroup.Exclusive {
+				return framework.NewStatus(framework.Unschedulable, fmt.Sprintf("node cannot be monopolized by podgroup %s/%s", superPodGroup.Namespace, superPodGroup.Name))
+			}
+			continue
+		}
+
+		if superPodGroup == nil {
+			if *sub.Exclusive {
+				return framework.NewStatus(framework.Unschedulable, fmt.Sprintf("node is already monopolized by podgroup %s/%s", super.Namespace, super.Name))
+			}
+			continue
+		}
+
+		if superPodGroup.UID != super.UID {
+			if *subPodGroup.Exclusive || *sub.Exclusive {
+				return framework.NewStatus(framework.Unschedulable, fmt.Sprintf("node is already monopolized by podgroup %s/%s", super.Namespace, super.Name))
+			}
+		}
+
+		continue
+	}
+
 	return framework.NewStatus(framework.Success, "")
 }
 
@@ -142,7 +184,7 @@ func (s *Scheduler) Score(ctx context.Context, state *framework.CycleState, pod 
 		}
 
 		for _, friend := range node.Pods {
-			names := GroupNames(friend.Pod)
+			names := groupNames(friend.Pod)
 			if friend.Pod.Namespace == super.Namespace && len(names) > 0 && names[0] == super.Name {
 				return 100, framework.NewStatus(framework.Success, "")
 			}
@@ -161,7 +203,7 @@ func (s *Scheduler) ScoreExtensions() framework.ScoreExtensions {
 func (s *Scheduler) Permit(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) (*framework.Status, time.Duration) {
 	waitTime := s.args.ScheduleTimeout.Unwrap()
 	ready, super, _, err := s.podGroupManager.Permit(ctx, pod, nodeName)
-	path := GroupPath(pod)
+	path := groupPath(pod)
 	if err != nil {
 		if super == nil {
 			return framework.NewStatus(framework.UnschedulableAndUnresolvable, "PodGroup not found"), waitTime
@@ -174,14 +216,14 @@ func (s *Scheduler) Permit(ctx context.Context, state *framework.CycleState, pod
 		return framework.NewStatus(framework.Unschedulable, err.Error()), waitTime
 	}
 
-	klog.Infof("Pod requires podgroup %s", GroupPath(pod))
+	klog.Infof("Pod requires podgroup %s", groupPath(pod))
 	if !ready {
 		return framework.NewStatus(framework.Wait, ""), waitTime
 	}
 
 	s.handle.IterateOverWaitingPods(func(waitingPod framework.WaitingPod) {
 		pod := waitingPod.GetPod()
-		if pod.Namespace == super.Namespace && GroupPath(pod) == path {
+		if pod.Namespace == super.Namespace && groupPath(pod) == path {
 			klog.Infof("Permit allows the pod: %s/%s", pod.Namespace, pod.Name)
 			waitingPod.Allow(s.Name())
 		}

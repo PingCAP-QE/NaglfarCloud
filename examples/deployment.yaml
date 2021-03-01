@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: pd
+  name: cluster1-pd
 spec:
   replicas: 1
   selector:
@@ -11,7 +11,7 @@ spec:
     metadata:
       labels:
         app: test-scheduler
-        podgroup.naglfar: tidb-cluster/pd
+        podgroup.naglfar: tidb-cluster-1.pd
     spec:
       schedulerName: naglfar-scheduler
       containers:
@@ -25,7 +25,7 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: tikv1
+  name: cluster1-tikv1
 spec:
   replicas: 1
   selector:
@@ -35,7 +35,7 @@ spec:
     metadata:
       labels:
         app: test-scheduler
-        podgroup.naglfar: tidb-cluster/tikv
+        podgroup.naglfar: tidb-cluster-1.tikv
     spec:
       schedulerName: naglfar-scheduler
       containers:
@@ -49,7 +49,7 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: tikv2
+  name: cluster1-tikv2
 spec:
   replicas: 1
   selector:
@@ -59,7 +59,7 @@ spec:
     metadata:
       labels:
         app: test-scheduler
-        podgroup.naglfar: tidb-cluster/tikv
+        podgroup.naglfar: tidb-cluster-1.tikv
     spec:
       schedulerName: naglfar-scheduler
       containers:
@@ -73,7 +73,7 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: tikv3
+  name: cluster1-tikv3
 spec:
   replicas: 1
   selector:
@@ -83,7 +83,7 @@ spec:
     metadata:
       labels:
         app: test-scheduler
-        podgroup.naglfar: tidb-cluster/tikv
+        podgroup.naglfar: tidb-cluster-1.tikv
     spec:
       schedulerName: naglfar-scheduler
       containers:
@@ -97,7 +97,7 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: tidb1
+  name: cluster1-tidb1
 spec:
   replicas: 1
   selector:
@@ -107,7 +107,7 @@ spec:
     metadata:
       labels:
         app: test-scheduler
-        podgroup.naglfar: tidb-cluster/tidb
+        podgroup.naglfar: tidb-cluster-1.tidb
     spec:
       schedulerName: naglfar-scheduler
       containers:
@@ -121,7 +121,7 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: tidb2
+  name: cluster1-tidb2
 spec:
   replicas: 1
   selector:
@@ -131,7 +131,7 @@ spec:
     metadata:
       labels:
         app: test-scheduler
-        podgroup.naglfar: tidb-cluster/tidb
+        podgroup.naglfar: tidb-cluster-1.tidb
     spec:
       schedulerName: naglfar-scheduler
       containers:
@@ -145,7 +145,7 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: tidb3
+  name: cluster1-tidb3
 spec:
   replicas: 1
   selector:
@@ -155,7 +155,7 @@ spec:
     metadata:
       labels:
         app: test-scheduler
-        podgroup.naglfar: tidb-cluster/tidb
+        podgroup.naglfar: tidb-cluster-1.tidb
     spec:
       schedulerName: naglfar-scheduler
       containers:
@@ -166,3 +166,171 @@ spec:
         - containerPort: 80
 
 ---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster2-pd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: test-scheduler
+  template:
+    metadata:
+      labels:
+        app: test-scheduler
+        podgroup.naglfar: tidb-cluster-2.pd
+    spec:
+      schedulerName: naglfar-scheduler
+      containers:
+      - image: nginx
+        imagePullPolicy: IfNotPresent
+        name: nginx
+        ports:
+        - containerPort: 80
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster2tikv1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: test-scheduler
+  template:
+    metadata:
+      labels:
+        app: test-scheduler
+        podgroup.naglfar: tidb-cluster-2.tikv
+    spec:
+      schedulerName: naglfar-scheduler
+      containers:
+      - image: nginx
+        imagePullPolicy: IfNotPresent
+        name: nginx
+        ports:
+        - containerPort: 80
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster2-tikv2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: test-scheduler
+  template:
+    metadata:
+      labels:
+        app: test-scheduler
+        podgroup.naglfar: tidb-cluster-2.tikv
+    spec:
+      schedulerName: naglfar-scheduler
+      containers:
+      - image: nginx
+        imagePullPolicy: IfNotPresent
+        name: nginx
+        ports:
+        - containerPort: 80
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster2-tikv3
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: test-scheduler
+  template:
+    metadata:
+      labels:
+        app: test-scheduler
+        podgroup.naglfar: tidb-cluster-2.tikv
+    spec:
+      schedulerName: naglfar-scheduler
+      containers:
+      - image: nginx
+        imagePullPolicy: IfNotPresent
+        name: nginx
+        ports:
+        - containerPort: 80
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster2-tidb1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: test-scheduler
+  template:
+    metadata:
+      labels:
+        app: test-scheduler
+        podgroup.naglfar: tidb-cluster-2.tidb
+    spec:
+      schedulerName: naglfar-scheduler
+      containers:
+      - image: nginx
+        imagePullPolicy: IfNotPresent
+        name: nginx
+        ports:
+        - containerPort: 80
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster2-tidb2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: test-scheduler
+  template:
+    metadata:
+      labels:
+        app: test-scheduler
+        podgroup.naglfar: tidb-cluster-2.tidb
+    spec:
+      schedulerName: naglfar-scheduler
+      containers:
+      - image: nginx
+        imagePullPolicy: IfNotPresent
+        name: nginx
+        ports:
+        - containerPort: 80
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster2-tidb3
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: test-scheduler
+  template:
+    metadata:
+      labels:
+        app: test-scheduler
+        podgroup.naglfar: tidb-cluster-2.tidb
+    spec:
+      schedulerName: naglfar-scheduler
+      containers:
+      - image: nginx
+        imagePullPolicy: IfNotPresent
+        name: nginx
+        ports:
+        - containerPort: 80
+
