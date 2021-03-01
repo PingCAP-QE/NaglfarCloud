@@ -178,5 +178,9 @@ func joinNames(names []string) string {
 }
 
 func isControlledByDaemon(pod *corev1.Pod) bool {
-	return metav1.GetControllerOf(pod).Kind == "DaemonSet"
+	controller := metav1.GetControllerOf(pod)
+	if controller == nil {
+		return false
+	}
+	return controller.Kind == "DaemonSet"
 }
