@@ -81,7 +81,13 @@ func (s *Scheduler) Less(pod1, pod2 *framework.QueuedPodInfo) bool {
 // PreFilter is called at the beginning of the scheduling cycle. All PreFilter
 // plugins must return success or the pod will be rejected.
 func (s *Scheduler) PreFilter(ctx context.Context, state *framework.CycleState, pod *v1.Pod) *framework.Status {
-	// Do nothing
+	// If any validation failed, a no-op state data is injected to "state" so that in later
+	// phases we can tell whether the failure comes from PreFilter or not.
+	if err := s.podGroupManager.PreFilter(ctx, pod); err != nil {
+		klog.Error(err)
+		state.Write(s.getStateKey(), nil)
+		return framework.NewStatus(framework.Unschedulable, err.Error())
+	}
 	return framework.NewStatus(framework.Success, "")
 }
 
@@ -162,8 +168,45 @@ func (s *Scheduler) Filter(ctx context.Context, state *framework.CycleState, pod
 // Optionally, a non-nil PostFilterResult may be returned along with a Success status. For example,
 // a preemption plugin may choose to return nominatedNodeName, so that framework can reuse that to update the
 // preemptor pod's .spec.status.nominatedNodeName field.
+//
+// Is used to rejecting a group of pods if a pod does not pass PreFilter or Filter.
 func (s *Scheduler) PostFilter(ctx context.Context, state *framework.CycleState, pod *v1.Pod,
 	filteredNodeStatusMap framework.NodeToStatusMap) (*framework.PostFilterResult, *framework.Status) {
+	// Check if the failure comes from PreFilter.
+	_, err := state.Read(s.getStateKey())
+	if err == nil {
+		state.Delete(s.getStateKey())
+		return &framework.PostFilterResult{}, framework.NewStatus(framework.Unschedulable)
+	}
+
+	super, sub, err := s.podGroupManager.podGroups(pod)
+	if err != nil {
+		return &framework.PostFilterResult{}, framework.NewStatus(framework.Error, err.Error())
+	}
+
+	if super == nil {
+		return &framework.PostFilterResult{}, framework.NewStatus(framework.Success, "can not find pod group")
+	}
+
+	// This indicates there are already enough Pods satisfying the PodGroup,
+	// so don't bother to reject the whole PodGroup.
+	assigned := s.podGroupManager.calculateAssignedPods(pod)
+	if assigned >= int(sub.MinMember) {
+		return &framework.PostFilterResult{}, framework.NewStatus(framework.Unschedulable)
+	}
+
+	// It's based on an implicit assumption: if the nth Pod failed,
+	// it's inferrable other Pods belonging to the same PodGroup would be very likely to fail.
+	s.handle.IterateOverWaitingPods(func(waitingPod framework.WaitingPod) {
+		if waitingPod.GetPod().Namespace == pod.Namespace && waitingPod.GetPod().Labels[util.PodGroupLabel] == pg.Name {
+			klog.Infof("PostFilter rejects the pod: %s/%s", pod.Namespace, waitingPod.GetPod().Name)
+			waitingPod.Reject(s.Name())
+		}
+	})
+
+	return &framework.PostFilterResult{}, framework.NewStatus(framework.Unschedulable,
+		fmt.Sprintf("PodGroup %v gets rejected due to Pod %v is unschedulable even after PostFilter", pgName, pod.Name))
+
 	return nil, nil
 }
 
@@ -253,6 +296,10 @@ func (s *Scheduler) rejectPod(uid types.UID) {
 		return
 	}
 	waitingPod.Reject(Name)
+}
+
+func (s *Scheduler) getStateKey() framework.StateKey {
+	return framework.StateKey(fmt.Sprintf("Prefilter-%v", s.Name()))
 }
 
 // New is the constructor of Scheduler
