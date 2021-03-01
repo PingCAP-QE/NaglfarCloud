@@ -49,10 +49,16 @@ uninstall: manifests
 image:
 	DOCKER_BUILDKIT=1 docker build -t naglfar-scheduler .
 
-deploy: deploy/naglfar-scheduler.yaml
+upload: image
+	minikube cache add naglfar-scheduler
+
+fresh:
+	minikube cache delete naglfar-scheduler
+
+deploy: install upload deploy/naglfar-scheduler.yaml
 	kubectl apply -f deploy/naglfar-scheduler.yaml
 
-upgrade: image deploy
+upgrade: fresh deploy
 	kubectl rollout restart deployment/naglfar-scheduler -n kube-system
 
 destroy:

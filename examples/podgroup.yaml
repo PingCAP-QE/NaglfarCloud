@@ -1,6 +1,33 @@
 apiVersion: naglfar.pingcap.com/v1
 kind: PodGroup
 metadata:
-  name: tidb-cluster
+  name: tidb-cluster-1
 spec:
-  minMember: 3
+  minMember: 7
+  exclusive: true
+  subGroups:
+    pd:
+      minMember: 1
+      exclusive: false
+    tikv: 
+      minMember: 3
+    tidb: 
+      minMember: 3
+
+---
+
+apiVersion: naglfar.pingcap.com/v1
+kind: PodGroup
+metadata:
+  name: tidb-cluster-2
+spec:
+  minMember: 7
+  exclusive: true
+  subGroups:
+    pd:
+      minMember: 1
+      exclusive: false
+    tikv: 
+      minMember: 3
+    tidb: 
+      minMember: 3

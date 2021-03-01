@@ -32,6 +32,12 @@ type PodGroupSpec struct {
 	// if there's not enough resources to start all tasks, the scheduler
 	// will not start anyone.
 	MinMember int32 `json:"minMember,omitempty"`
+
+	// +optional
+	Exclusive *bool `json:"exclusive,omitempty"`
+
+	// +optional
+	SubGroups map[string]PodGroupSpec `json:"subGroups,omitempty"`
 }
 
 // PodGroupStatus defines the observed state of PodGroup
@@ -49,6 +55,15 @@ type PodGroup struct {
 
 	Spec   PodGroupSpec   `json:"spec,omitempty"`
 	Status PodGroupStatus `json:"status,omitempty"`
+}
+
+// IsExclusive is a wrapper of Exclusive field,
+// it returns false if Exclusive field is nil.
+func (pg *PodGroupSpec) IsExclusive() bool {
+	if pg.Exclusive == nil {
+		return false
+	}
+	return *pg.Exclusive
 }
 
 // +kubebuilder:object:root=true

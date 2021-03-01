@@ -176,6 +176,16 @@ data:
         preFilter:
           enabled:
             - name: naglfar-scheduler
+        filter:
+          enabled:
+            - name: naglfar-scheduler
+        postFilter:
+          enabled:
+            - name: naglfar-scheduler
+        score:
+          enabled:
+            - name: naglfar-scheduler
+              weight: 10000
         permit:
           enabled:
             - name: naglfar-scheduler
