@@ -37,8 +37,8 @@ const subGroupSeparator = "."
 
 var errorWaiting = fmt.Errorf("waiting")
 
-func subGroupNotFound(super *apiv1.PodGroup, name string) error {
-	return fmt.Errorf("subgroup %s not found in group %s/%s", name, super.Namespace, super.Name)
+func subGroupNotFound(podGroup *apiv1.PodGroup, name string) error {
+	return fmt.Errorf("subgroup %s not found in group %s/%s", name, podGroup.Namespace, podGroup.Name)
 }
 
 // PodGroupManager is the mananger of podgroup
@@ -75,24 +75,24 @@ func (mgr *PodGroupManager) PreFilter(ctx context.Context, pod *corev1.Pod) erro
 }
 
 // Permit permits a pod to run
-func (mgr *PodGroupManager) Permit(ctx context.Context, pod *corev1.Pod, nodeName string) (bool, *apiv1.PodGroup, *apiv1.PodGroupSpec, error) {
-	super, sub, err := mgr.podGroups(pod)
+func (mgr *PodGroupManager) Permit(ctx context.Context, pod *corev1.Pod, nodeName string) (bool, error) {
+	podGroup, subPodGroup, err := mgr.podGroups(pod)
 
 	if err != nil {
-		return false, super, sub, fmt.Errorf("cannot get pod group: %v", err)
+		return false, fmt.Errorf("cannot get pod group: %v", err)
 	}
 
-	if super == nil {
-		return true, super, sub, nil
+	if podGroup == nil {
+		return true, nil
 	}
 
 	assigned := mgr.calculateAssignedPods(pod)
 	// The number of pods that have been assigned nodes is calculated from the snapshot.
 	// The current pod in not included in the snapshot during the current scheduling cycle.
-	if assigned+1 < int(sub.MinMember) {
-		return false, super, sub, errorWaiting
+	if assigned+1 < int(subPodGroup.MinMember) {
+		return false, errorWaiting
 	}
-	return true, super, sub, nil
+	return true, nil
 }
 
 // podGroups returns the super pod group and sub pod group that a Pod belongs to.
@@ -102,29 +102,29 @@ func (mgr *PodGroupManager) podGroups(pod *corev1.Pod) (*apiv1.PodGroup, *apiv1.
 		return nil, nil, nil
 	}
 
-	super, err := mgr.schedulingClient.PodGroups(pod.Namespace).Get(mgr.ctx, names[0], metav1.GetOptions{})
+	podGroup, err := mgr.schedulingClient.PodGroups(pod.Namespace).Get(mgr.ctx, names[0], metav1.GetOptions{})
 	if err != nil {
 		return nil, nil, err
 	}
 
-	sub := &super.Spec
+	subPodGroup := &podGroup.Spec
 	for _, name := range names[1:] {
-		if sub.SubGroups == nil {
-			return nil, nil, subGroupNotFound(super, name)
+		if subPodGroup.SubGroups == nil {
+			return nil, nil, subGroupNotFound(podGroup, name)
 		}
-		spec, ok := sub.SubGroups[name]
+		spec, ok := subPodGroup.SubGroups[name]
 		if !ok {
-			return nil, nil, subGroupNotFound(super, name)
+			return nil, nil, subGroupNotFound(podGroup, name)
 		}
 
-		if spec.Exclusive == nil && sub.Exclusive != nil {
+		if spec.Exclusive == nil && subPodGroup.Exclusive != nil {
 			// inherit exclusive from super group
-			spec.Exclusive = &*sub.Exclusive
+			spec.Exclusive = &*subPodGroup.Exclusive
 		}
-		sub = &spec
+		subPodGroup = &spec
 	}
 
-	return super, sub, nil
+	return podGroup, subPodGroup, nil
 }
 
 func (mgr *PodGroupManager) calculateAssignedPods(target *corev1.Pod) int {
@@ -152,12 +152,12 @@ func (mgr *PodGroupManager) calculateAssignedPods(target *corev1.Pod) int {
 }
 
 func (mgr *PodGroupManager) getCreationTimestamp(pod *corev1.Pod, defaultTime time.Time) time.Time {
-	super, _, _ := mgr.podGroups(pod)
-	if super == nil {
+	podGroup, _, _ := mgr.podGroups(pod)
+	if podGroup == nil {
 		return defaultTime
 	}
 
-	return super.CreationTimestamp.Time
+	return podGroup.CreationTimestamp.Time
 }
 
 // groupPath is a function to get podgroup label of pod
