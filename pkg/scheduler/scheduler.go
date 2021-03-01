@@ -127,21 +127,21 @@ func (s *Scheduler) Filter(ctx context.Context, state *framework.CycleState, pod
 		}
 
 		if super == nil {
-			if superPodGroup != nil && *subPodGroup.Exclusive {
+			if superPodGroup != nil && subPodGroup.IsExclusive() {
 				return framework.NewStatus(framework.Unschedulable, fmt.Sprintf("node cannot be monopolized by podgroup %s/%s", superPodGroup.Namespace, superPodGroup.Name))
 			}
 			continue
 		}
 
 		if superPodGroup == nil {
-			if *sub.Exclusive {
+			if sub.IsExclusive() {
 				return framework.NewStatus(framework.Unschedulable, fmt.Sprintf("node is already monopolized by podgroup %s/%s", super.Namespace, super.Name))
 			}
 			continue
 		}
 
 		if superPodGroup.UID != super.UID {
-			if *subPodGroup.Exclusive || *sub.Exclusive {
+			if subPodGroup.IsExclusive() || sub.IsExclusive() {
 				return framework.NewStatus(framework.Unschedulable, fmt.Sprintf("node is already monopolized by podgroup %s/%s", super.Namespace, super.Name))
 			}
 		}

@@ -57,6 +57,15 @@ type PodGroup struct {
 	Status PodGroupStatus `json:"status,omitempty"`
 }
 
+// IsExclusive is a wrapper of Exclusive field,
+// it returns false if Exclusive field is nil.
+func (pg *PodGroupSpec) IsExclusive() bool {
+	if pg.Exclusive == nil {
+		return false
+	}
+	return *pg.Exclusive
+}
+
 // +kubebuilder:object:root=true
 
 // PodGroupList contains a list of PodGroup
