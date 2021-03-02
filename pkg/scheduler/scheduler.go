@@ -27,8 +27,8 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
-	"k8s.io/kubernetes/pkg/scheduler/framework"
 	schedulerRuntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
+	framework "k8s.io/kubernetes/pkg/scheduler/framework/v1alpha1"
 
 	"github.com/PingCAP-QE/NaglfarCloud/pkg/client"
 	"github.com/PingCAP-QE/NaglfarCloud/pkg/util"
@@ -57,7 +57,7 @@ type Args struct {
 // Scheduler is the custom scheduler of naglfar system
 type Scheduler struct {
 	args            *Args
-	handle          framework.Handle
+	handle          framework.FrameworkHandle
 	podGroupManager *PodGroupManager
 }
 
@@ -210,7 +210,7 @@ func (s *Scheduler) Permit(ctx context.Context, state *framework.CycleState, pod
 			klog.Infof("Pod: %s/%s is waiting to be scheduled to node: %v", pod.Namespace, pod.Name, nodeName)
 			return framework.NewStatus(framework.Wait, ""), waitTime
 		}
-		klog.Error("Permit error %v", err)
+		klog.Errorf("Permit error %s", err.Error())
 		return framework.NewStatus(framework.UnschedulableAndUnresolvable, err.Error()), waitTime
 	}
 
@@ -254,7 +254,7 @@ func (s *Scheduler) rejectPod(uid types.UID) {
 }
 
 // New is the constructor of Scheduler
-func New(cfg runtime.Object, f framework.Handle) (framework.Plugin, error) {
+func New(cfg runtime.Object, f framework.FrameworkHandle) (framework.Plugin, error) {
 	args := new(Args)
 
 	if err := schedulerRuntime.DecodeInto(cfg, args); err != nil {

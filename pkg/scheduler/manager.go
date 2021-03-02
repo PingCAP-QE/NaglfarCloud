@@ -25,7 +25,7 @@ import (
 	informerv1 "k8s.io/client-go/informers/core/v1"
 	listerv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/klog/v2"
-	"k8s.io/kubernetes/pkg/scheduler/framework"
+	framework "k8s.io/kubernetes/pkg/scheduler/framework/v1alpha1"
 
 	apiv1 "github.com/PingCAP-QE/NaglfarCloud/pkg/api/v1"
 	"github.com/PingCAP-QE/NaglfarCloud/pkg/client"
