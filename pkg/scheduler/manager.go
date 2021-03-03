@@ -151,6 +151,11 @@ func (mgr *PodGroupManager) calculateAssignedPods(target *corev1.Pod) int {
 	return count
 }
 
+func (mgr *PodGroupManager) rescheduleAfter(podGroup *apiv1.PodGroup, dur time.Duration) (*apiv1.PodGroup, error) {
+	podGroup.Status.NextSchedulingTime.Time = podGroup.SchedulingTime().Add(dur)
+	return mgr.schedulingClient.PodGroups(podGroup.Namespace).UpdateStatus(mgr.ctx, podGroup, metav1.UpdateOptions{})
+}
+
 func (mgr *PodGroupManager) getSchedulingTime(pod *corev1.Pod, defaultTime time.Time) time.Time {
 	podGroup, _, _ := mgr.podGroups(pod)
 	if podGroup == nil {
