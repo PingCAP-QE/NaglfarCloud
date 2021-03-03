@@ -51,12 +51,13 @@ type PodGroupStatus struct {
 
 	// NextSchedulingTime is the time to schedule this pod group
 	// +optional
-	NextSchedulingTime *metav1.Time `json:"nextSchedulingTime,omitempty"`
+	NextSchedulingTime *metav1.Time `json:"nextchedulingTime,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
 // PodGroup is the Schema for the podgroups API
+// +kubebuilder:subresource:status
 type PodGroup struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
