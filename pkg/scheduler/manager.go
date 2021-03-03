@@ -69,8 +69,25 @@ func NewPodGroupManager(snapshotSharedLister framework.SharedLister, scheduleTim
 }
 
 // PreFilter filters out a pod if it
+// - Check if the numbers of total pods is less than minMenber
 func (mgr *PodGroupManager) PreFilter(ctx context.Context, pod *corev1.Pod) error {
-	klog.Infof("Pre-filter %v", pod.Name)
+	super, sub, err := mgr.podGroups(pod)
+	if err != nil {
+		return fmt.Errorf("cannot get pod group: %s", err.Error())
+	}
+
+	if super == nil {
+		return nil
+	}
+
+	friends, err := mgr.podLister.List(newSubGroupSelector(groupNames(pod)))
+	if err != nil {
+		return fmt.Errorf("cannot list pods in the same group: %s", err.Error())
+	}
+
+	if len(friends) < int(sub.MinMember) {
+		return fmt.Errorf("the numbers of pods in the same group is less than minMember: %d < %d", len(friends), sub.MinMember)
+	}
 	return nil
 }
 
