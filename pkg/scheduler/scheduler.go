@@ -27,8 +27,8 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
-	"k8s.io/kubernetes/pkg/scheduler/framework"
 	schedulerRuntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
+	framework "k8s.io/kubernetes/pkg/scheduler/framework/v1alpha1"
 
 	"github.com/PingCAP-QE/NaglfarCloud/pkg/client"
 	"github.com/PingCAP-QE/NaglfarCloud/pkg/util"
@@ -57,7 +57,7 @@ type Args struct {
 // Scheduler is the custom scheduler of naglfar system
 type Scheduler struct {
 	args            *Args
-	handle          framework.Handle
+	handle          framework.FrameworkHandle
 	podGroupManager *PodGroupManager
 }
 
@@ -88,6 +88,7 @@ func (s *Scheduler) PreFilter(ctx context.Context, state *framework.CycleState, 
 		state.Write(s.getStateKey(), nil)
 		return framework.NewStatus(framework.Unschedulable, err.Error())
 	}
+
 	return framework.NewStatus(framework.Success, "")
 }
 
@@ -133,21 +134,21 @@ func (s *Scheduler) Filter(ctx context.Context, state *framework.CycleState, pod
 		}
 
 		if super == nil {
-			if superPodGroup != nil && *subPodGroup.Exclusive {
+			if superPodGroup != nil && subPodGroup.IsExclusive() {
 				return framework.NewStatus(framework.Unschedulable, fmt.Sprintf("node cannot be monopolized by podgroup %s/%s", superPodGroup.Namespace, superPodGroup.Name))
 			}
 			continue
 		}
 
 		if superPodGroup == nil {
-			if *sub.Exclusive {
+			if sub.IsExclusive() {
 				return framework.NewStatus(framework.Unschedulable, fmt.Sprintf("node is already monopolized by podgroup %s/%s", super.Namespace, super.Name))
 			}
 			continue
 		}
 
 		if superPodGroup.UID != super.UID {
-			if *subPodGroup.Exclusive || *sub.Exclusive {
+			if subPodGroup.IsExclusive() || sub.IsExclusive() {
 				return framework.NewStatus(framework.Unschedulable, fmt.Sprintf("node is already monopolized by podgroup %s/%s", super.Namespace, super.Name))
 			}
 		}
@@ -179,47 +180,45 @@ func (s *Scheduler) PostFilter(ctx context.Context, state *framework.CycleState,
 		return &framework.PostFilterResult{}, framework.NewStatus(framework.Unschedulable)
 	}
 
-	super, sub, err := s.podGroupManager.podGroups(pod)
+	superPodGroup, subPodGroup, err := s.podGroupManager.podGroups(pod)
 	if err != nil {
 		return &framework.PostFilterResult{}, framework.NewStatus(framework.Error, err.Error())
 	}
 
-	if super == nil {
+	if superPodGroup == nil {
 		return &framework.PostFilterResult{}, framework.NewStatus(framework.Success, "can not find pod group")
 	}
 
 	// This indicates there are already enough Pods satisfying the PodGroup,
 	// so don't bother to reject the whole PodGroup.
 	assigned := s.podGroupManager.calculateAssignedPods(pod)
-	if assigned >= int(sub.MinMember) {
+	if assigned >= int(subPodGroup.MinMember) {
 		return &framework.PostFilterResult{}, framework.NewStatus(framework.Unschedulable)
 	}
 
 	// It's based on an implicit assumption: if the nth Pod failed,
 	// it's inferrable other Pods belonging to the same PodGroup would be very likely to fail.
 	s.handle.IterateOverWaitingPods(func(waitingPod framework.WaitingPod) {
-		if waitingPod.GetPod().Namespace == pod.Namespace && waitingPod.GetPod().Labels[util.PodGroupLabel] == pg.Name {
+		if waitingPod.GetPod().Namespace == pod.Namespace && groupPath(waitingPod.GetPod()) == groupPath(pod) {
 			klog.Infof("PostFilter rejects the pod: %s/%s", pod.Namespace, waitingPod.GetPod().Name)
 			waitingPod.Reject(s.Name())
 		}
 	})
 
 	return &framework.PostFilterResult{}, framework.NewStatus(framework.Unschedulable,
-		fmt.Sprintf("PodGroup %v gets rejected due to Pod %v is unschedulable even after PostFilter", pgName, pod.Name))
-
-	return nil, nil
+		fmt.Sprintf("PodGroup %v gets rejected due to Pod %s/%s is unschedulable even after PostFilter", groupPath(pod), pod.Namespace, pod.Name))
 }
 
 // Score is called on each filtered node. It must return success and an integer
 // indicating the rank of the node. All scoring plugins must return success or
 // the pod will be rejected.
 func (s *Scheduler) Score(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) (int64, *framework.Status) {
-	super, _, err := s.podGroupManager.podGroups(pod)
+	podGroup, _, err := s.podGroupManager.podGroups(pod)
 	if err != nil {
 		return 0, framework.NewStatus(framework.Error, fmt.Sprintf("cannot get pod group: %s", err.Error()))
 	}
 
-	if super != nil {
+	if podGroup != nil {
 		node, err := s.podGroupManager.snapshotSharedLister.NodeInfos().Get(nodeName)
 		if err != nil {
 			klog.Errorf("Cannot get nodeInfos from frameworkHandle: %v", err)
@@ -228,7 +227,7 @@ func (s *Scheduler) Score(ctx context.Context, state *framework.CycleState, pod 
 
 		for _, friend := range node.Pods {
 			names := groupNames(friend.Pod)
-			if friend.Pod.Namespace == super.Namespace && len(names) > 0 && names[0] == super.Name {
+			if friend.Pod.Namespace == podGroup.Namespace && len(names) > 0 && names[0] == podGroup.Name {
 				return 100, framework.NewStatus(framework.Success, "")
 			}
 		}
@@ -245,18 +244,16 @@ func (s *Scheduler) ScoreExtensions() framework.ScoreExtensions {
 // Permit is the functions invoked by the framework at "Permit" extension point.
 func (s *Scheduler) Permit(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) (*framework.Status, time.Duration) {
 	waitTime := s.args.ScheduleTimeout.Unwrap()
-	ready, super, _, err := s.podGroupManager.Permit(ctx, pod, nodeName)
 	path := groupPath(pod)
+	namespace := pod.Namespace
+	ready, err := s.podGroupManager.Permit(ctx, pod, nodeName)
 	if err != nil {
-		if super == nil {
-			return framework.NewStatus(framework.UnschedulableAndUnresolvable, "PodGroup not found"), waitTime
-		}
 		if err == errorWaiting {
 			klog.Infof("Pod: %s/%s is waiting to be scheduled to node: %v", pod.Namespace, pod.Name, nodeName)
 			return framework.NewStatus(framework.Wait, ""), waitTime
 		}
-		klog.Error("Permit error %v", err)
-		return framework.NewStatus(framework.Unschedulable, err.Error()), waitTime
+		klog.Errorf("Permit error %s", err.Error())
+		return framework.NewStatus(framework.UnschedulableAndUnresolvable, err.Error()), waitTime
 	}
 
 	klog.Infof("Pod requires podgroup %s", groupPath(pod))
@@ -266,7 +263,7 @@ func (s *Scheduler) Permit(ctx context.Context, state *framework.CycleState, pod
 
 	s.handle.IterateOverWaitingPods(func(waitingPod framework.WaitingPod) {
 		pod := waitingPod.GetPod()
-		if pod.Namespace == super.Namespace && groupPath(pod) == path {
+		if pod.Namespace == namespace && groupPath(pod) == path {
 			klog.Infof("Permit allows the pod: %s/%s", pod.Namespace, pod.Name)
 			waitingPod.Allow(s.Name())
 		}
@@ -278,15 +275,31 @@ func (s *Scheduler) Permit(ctx context.Context, state *framework.CycleState, pod
 
 // Reserve is the functions invoked by the framework at "reserve" extension point.
 func (s *Scheduler) Reserve(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) *framework.Status {
+	// do nothing
 	return nil
 }
 
 // Unreserve rejects all other Pods in the PodGroup when one of the pods in the group times out.
 func (s *Scheduler) Unreserve(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) {
+	podGroup, _, err := s.podGroupManager.podGroups(pod)
+	if err != nil {
+		klog.Errorf("cannot get pod group: %s", err.Error())
+		return
+	}
+
+	if podGroup != nil {
+		s.handle.IterateOverWaitingPods(func(waitingPod framework.WaitingPod) {
+			if waitingPod.GetPod().Namespace == pod.Namespace && groupPath(waitingPod.GetPod()) == groupPath(pod) {
+				klog.V(3).Infof("Unreserve rejects the pod: %s/%s", waitingPod.GetPod().Namespace, waitingPod.GetPod().Name)
+				waitingPod.Reject(s.Name())
+			}
+		})
+	}
 }
 
 // PostBind is called after a pod is successfully bound. These plugins are used update PodGroup when pod is bound.
 func (s *Scheduler) PostBind(ctx context.Context, _ *framework.CycleState, pod *v1.Pod, nodeName string) {
+	// do nothing
 }
 
 // rejectPod rejects pod in cache
@@ -303,7 +316,7 @@ func (s *Scheduler) getStateKey() framework.StateKey {
 }
 
 // New is the constructor of Scheduler
-func New(cfg runtime.Object, f framework.Handle) (framework.Plugin, error) {
+func New(cfg runtime.Object, f framework.FrameworkHandle) (framework.Plugin, error) {
 	args := new(Args)
 
 	if err := schedulerRuntime.DecodeInto(cfg, args); err != nil {
