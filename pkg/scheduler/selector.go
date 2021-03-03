@@ -15,6 +15,7 @@
 package scheduler
 
 import (
+	"fmt"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/labels"
@@ -48,7 +49,7 @@ func (s subGroupSelector) Empty() bool {
 
 // String returns a human readable string that represents this selector.
 func (s subGroupSelector) String() string {
-	return "A label selector to selector all pods in a sub podgroup"
+	return fmt.Sprintf("A label selector to selector all pods in a podgroup(%s)", joinNames(s))
 }
 
 // Add adds requirements to the Selector

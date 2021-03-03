@@ -186,7 +186,7 @@ func (s *Scheduler) PostFilter(ctx context.Context, state *framework.CycleState,
 	}
 
 	if superPodGroup == nil {
-		return &framework.PostFilterResult{}, framework.NewStatus(framework.Success, "can not find pod group")
+		return &framework.PostFilterResult{}, framework.NewStatus(framework.Success, "no binding pod group")
 	}
 
 	// This indicates there are already enough Pods satisfying the PodGroup,
