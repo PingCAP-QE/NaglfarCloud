@@ -17,6 +17,8 @@ limitations under the License.
 package v1
 
 import (
+	"time"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -33,9 +35,11 @@ type PodGroupSpec struct {
 	// will not start anyone.
 	MinMember int32 `json:"minMember,omitempty"`
 
+	// Exclusive is a flag to decide should this pod group monopolize nodes
 	// +optional
 	Exclusive *bool `json:"exclusive,omitempty"`
 
+	// SubGroups is a list of sub pod groups
 	// +optional
 	SubGroups map[string]PodGroupSpec `json:"subGroups,omitempty"`
 }
@@ -44,6 +48,10 @@ type PodGroupSpec struct {
 type PodGroupStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+
+	// NextSchedulingTime is the time to schedule this pod group
+	// +optional
+	NextSchedulingTime *metav1.Time `json:"nextSchedulingTime,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -64,6 +72,16 @@ func (pg *PodGroupSpec) IsExclusive() bool {
 		return false
 	}
 	return *pg.Exclusive
+}
+
+// SchedulingTime is a wrapper of NextSchedulingTime field of status,
+// it returns create time if NextSchedulingTime field is nil.
+func (pg *PodGroup) SchedulingTime() time.Time {
+	if pg.Status.NextSchedulingTime == nil {
+		return pg.CreationTimestamp.Time
+	}
+
+	return pg.Status.NextSchedulingTime.Time
 }
 
 // +kubebuilder:object:root=true

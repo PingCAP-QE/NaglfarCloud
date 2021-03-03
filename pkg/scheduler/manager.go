@@ -151,13 +151,13 @@ func (mgr *PodGroupManager) calculateAssignedPods(target *corev1.Pod) int {
 	return count
 }
 
-func (mgr *PodGroupManager) getCreationTimestamp(pod *corev1.Pod, defaultTime time.Time) time.Time {
+func (mgr *PodGroupManager) getSchedulingTime(pod *corev1.Pod, defaultTime time.Time) time.Time {
 	podGroup, _, _ := mgr.podGroups(pod)
 	if podGroup == nil {
 		return defaultTime
 	}
 
-	return podGroup.CreationTimestamp.Time
+	return podGroup.SchedulingTime()
 }
 
 // groupPath is a function to get podgroup label of pod

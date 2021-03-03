@@ -35,6 +35,8 @@ spec:
           description: PodGroupSpec defines the desired state of PodGroup
           properties:
             exclusive:
+              description: Exclusive is a flag to decide should this pod group monopolize
+                nodes
               type: boolean
             minMember:
               description: MinMember defines the minimal number of members/tasks to
@@ -44,10 +46,16 @@ spec:
               type: integer
             subGroups:
               additionalProperties: {}
+              description: SubGroups is a list of sub pod groups
               type: object
           type: object
         status:
           description: PodGroupStatus defines the observed state of PodGroup
+          properties:
+            nextSchedulingTime:
+              description: NextSchedulingTime is the time to schedule this pod group
+              format: date-time
+              type: string
           type: object
       type: object
   version: v1
