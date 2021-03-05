@@ -168,8 +168,22 @@ func (mgr *PodGroupManager) calculateAssignedPods(target *corev1.Pod) int {
 	return count
 }
 
-func (mgr *PodGroupManager) rescheduleAfter(podGroup *apiv1.PodGroup, dur time.Duration) (*apiv1.PodGroup, error) {
-	podGroup.Status.NextSchedulingTime.Time = podGroup.SchedulingTime().Add(dur)
+// rescheduleAfterAll is a method to reschedule pod group to end of queue.
+// the duration is the delay of current last pog group.
+func (mgr *PodGroupManager) rescheduleAfterAll(podGroup *apiv1.PodGroup, dur time.Duration) (*apiv1.PodGroup, error) {
+	podGroups, err := mgr.schedulingClient.PodGroups(podGroup.Namespace).List(mgr.ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("fail to list pod group: %s", err.Error())
+	}
+
+	maxTime := time.Time{}
+	for _, pg := range podGroups.Items {
+		if pg.SchedulingTime().After(maxTime) {
+			maxTime = pg.SchedulingTime()
+		}
+	}
+
+	podGroup.Status.NextSchedulingTime.Time = maxTime.Add(dur)
 	return mgr.schedulingClient.PodGroups(podGroup.Namespace).UpdateStatus(mgr.ctx, podGroup, metav1.UpdateOptions{})
 }
 

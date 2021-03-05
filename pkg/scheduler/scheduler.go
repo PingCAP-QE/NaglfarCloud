@@ -196,6 +196,11 @@ func (s *Scheduler) PostFilter(ctx context.Context, state *framework.CycleState,
 		return &framework.PostFilterResult{}, framework.NewStatus(framework.Unschedulable)
 	}
 
+	_, err = s.podGroupManager.rescheduleAfterAll(superPodGroup, time.Second)
+	if err != nil {
+		klog.Errorf("failed to reschedule pod group %s/%s: %s", superPodGroup.Namespace, superPodGroup.Name, err.Error())
+	}
+
 	// It's based on an implicit assumption: if the nth Pod failed,
 	// it's inferrable other Pods belonging to the same PodGroup would be very likely to fail.
 	s.handle.IterateOverWaitingPods(func(waitingPod framework.WaitingPod) {
@@ -288,6 +293,10 @@ func (s *Scheduler) Unreserve(ctx context.Context, state *framework.CycleState, 
 	}
 
 	if podGroup != nil {
+		_, err = s.podGroupManager.rescheduleAfterAll(podGroup, time.Second)
+		if err != nil {
+			klog.Errorf("failed to reschedule pod group %s/%s: %s", podGroup.Namespace, podGroup.Name, err.Error())
+		}
 		s.handle.IterateOverWaitingPods(func(waitingPod framework.WaitingPod) {
 			if waitingPod.GetPod().Namespace == pod.Namespace && groupPath(waitingPod.GetPod()) == groupPath(pod) {
 				klog.V(3).Infof("Unreserve rejects the pod: %s/%s", waitingPod.GetPod().Namespace, waitingPod.GetPod().Name)
