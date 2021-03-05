@@ -68,8 +68,8 @@ func (s *Scheduler) Name() string {
 
 // Less are used to sort pods in the scheduling queue.
 func (s *Scheduler) Less(pod1, pod2 *framework.QueuedPodInfo) bool {
-	time1 := s.podGroupManager.getSchedulingTime(pod1.Pod, pod1.InitialAttemptTimestamp)
-	time2 := s.podGroupManager.getSchedulingTime(pod2.Pod, pod2.InitialAttemptTimestamp)
+	time1 := s.podGroupManager.getSchedulingTime(pod1.Pod, pod1.Timestamp)
+	time2 := s.podGroupManager.getSchedulingTime(pod2.Pod, pod2.Timestamp)
 
 	if time1.Equal(time2) {
 		return pod1.Pod.Labels[PodGroupLabel] < pod2.Pod.Labels[PodGroupLabel]
