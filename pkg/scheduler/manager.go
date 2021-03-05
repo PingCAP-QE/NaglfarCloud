@@ -168,13 +168,20 @@ func (mgr *PodGroupManager) calculateAssignedPods(target *corev1.Pod) int {
 	return count
 }
 
-func (mgr *PodGroupManager) getCreationTimestamp(pod *corev1.Pod, defaultTime time.Time) time.Time {
+// reschedule is a method to reschedule pod group to end of queue.
+// the duration is the delay of current last pog group.
+func (mgr *PodGroupManager) reschedule(podGroup *apiv1.PodGroup) (*apiv1.PodGroup, error) {
+	podGroup.Status.NextSchedulingTime.Time = time.Now()
+	return mgr.schedulingClient.PodGroups(podGroup.Namespace).UpdateStatus(mgr.ctx, podGroup, metav1.UpdateOptions{})
+}
+
+func (mgr *PodGroupManager) getSchedulingTime(pod *corev1.Pod, defaultTime time.Time) time.Time {
 	podGroup, _, _ := mgr.podGroups(pod)
 	if podGroup == nil {
 		return defaultTime
 	}
 
-	return podGroup.CreationTimestamp.Time
+	return podGroup.SchedulingTime()
 }
 
 // groupPath is a function to get podgroup label of pod

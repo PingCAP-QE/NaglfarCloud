@@ -70,8 +70,8 @@ describe:
 log:
 	kubectl logs -f deployment/naglfar-scheduler -n kube-system
 
-manifests:
-	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./pkg/..." output:crd:artifacts:config=config/crd/bases
+manifests: pkg/api/v1/*.go
+	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./pkg/..." output:crd:artifacts:config=deploy/crd/bases
 
 # Generate code
 generate: manifests

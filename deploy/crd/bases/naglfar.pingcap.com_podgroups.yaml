@@ -15,6 +15,8 @@ spec:
     plural: podgroups
     singular: podgroup
   scope: Namespaced
+  subresources:
+    status: {}
   validation:
     openAPIV3Schema:
       description: PodGroup is the Schema for the podgroups API
@@ -34,13 +36,28 @@ spec:
         spec:
           description: PodGroupSpec defines the desired state of PodGroup
           properties:
-            foo:
-              description: Foo is an example field of PodGroup. Edit PodGroup_types.go
-                to remove/update
-              type: string
+            exclusive:
+              description: Exclusive is a flag to decide should this pod group monopolize
+                nodes
+              type: boolean
+            minMember:
+              description: MinMember defines the minimal number of members/tasks to
+                run the pod group; if there's not enough resources to start all tasks,
+                the scheduler will not start anyone.
+              format: int32
+              type: integer
+            subGroups:
+              additionalProperties: {}
+              description: SubGroups is a list of sub pod groups
+              type: object
           type: object
         status:
           description: PodGroupStatus defines the observed state of PodGroup
+          properties:
+            nextchedulingTime:
+              description: NextSchedulingTime is the time to schedule this pod group
+              format: date-time
+              type: string
           type: object
       type: object
   version: v1

@@ -68,8 +68,8 @@ func (s *Scheduler) Name() string {
 
 // Less are used to sort pods in the scheduling queue.
 func (s *Scheduler) Less(pod1, pod2 *framework.QueuedPodInfo) bool {
-	time1 := s.podGroupManager.getCreationTimestamp(pod1.Pod, pod1.InitialAttemptTimestamp)
-	time2 := s.podGroupManager.getCreationTimestamp(pod2.Pod, pod2.InitialAttemptTimestamp)
+	time1 := s.podGroupManager.getSchedulingTime(pod1.Pod, pod1.Timestamp)
+	time2 := s.podGroupManager.getSchedulingTime(pod2.Pod, pod2.Timestamp)
 
 	if time1.Equal(time2) {
 		return pod1.Pod.Labels[PodGroupLabel] < pod2.Pod.Labels[PodGroupLabel]
@@ -196,6 +196,11 @@ func (s *Scheduler) PostFilter(ctx context.Context, state *framework.CycleState,
 		return &framework.PostFilterResult{}, framework.NewStatus(framework.Unschedulable)
 	}
 
+	_, err = s.podGroupManager.reschedule(superPodGroup)
+	if err != nil {
+		klog.Errorf("failed to reschedule pod group %s/%s: %s", superPodGroup.Namespace, superPodGroup.Name, err.Error())
+	}
+
 	// It's based on an implicit assumption: if the nth Pod failed,
 	// it's inferrable other Pods belonging to the same PodGroup would be very likely to fail.
 	s.handle.IterateOverWaitingPods(func(waitingPod framework.WaitingPod) {
@@ -288,6 +293,10 @@ func (s *Scheduler) Unreserve(ctx context.Context, state *framework.CycleState, 
 	}
 
 	if podGroup != nil {
+		_, err = s.podGroupManager.reschedule(podGroup)
+		if err != nil {
+			klog.Errorf("failed to reschedule pod group %s/%s: %s", podGroup.Namespace, podGroup.Name, err.Error())
+		}
 		s.handle.IterateOverWaitingPods(func(waitingPod framework.WaitingPod) {
 			if waitingPod.GetPod().Namespace == pod.Namespace && groupPath(waitingPod.GetPod()) == groupPath(pod) {
 				klog.V(3).Infof("Unreserve rejects the pod: %s/%s", waitingPod.GetPod().Namespace, waitingPod.GetPod().Name)
