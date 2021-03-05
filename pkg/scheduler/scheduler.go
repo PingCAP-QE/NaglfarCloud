@@ -196,7 +196,7 @@ func (s *Scheduler) PostFilter(ctx context.Context, state *framework.CycleState,
 		return &framework.PostFilterResult{}, framework.NewStatus(framework.Unschedulable)
 	}
 
-	_, err = s.podGroupManager.rescheduleAfterAll(superPodGroup, time.Second)
+	_, err = s.podGroupManager.reschedule(superPodGroup)
 	if err != nil {
 		klog.Errorf("failed to reschedule pod group %s/%s: %s", superPodGroup.Namespace, superPodGroup.Name, err.Error())
 	}
@@ -293,7 +293,7 @@ func (s *Scheduler) Unreserve(ctx context.Context, state *framework.CycleState, 
 	}
 
 	if podGroup != nil {
-		_, err = s.podGroupManager.rescheduleAfterAll(podGroup, time.Second)
+		_, err = s.podGroupManager.reschedule(podGroup)
 		if err != nil {
 			klog.Errorf("failed to reschedule pod group %s/%s: %s", podGroup.Namespace, podGroup.Name, err.Error())
 		}
