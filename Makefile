@@ -20,6 +20,10 @@ test: fmt vet
 scheduler: mod format
 	go build -o bin/scheduler main.go
 
+# Build webhook manager binary
+webhook: mod format
+	go build -o bin/webhook webhook/main.go
+
 clean:
 	rm -rf bin
 
@@ -47,7 +51,7 @@ uninstall: manifests
 	kustomize build deploy/crd | kubectl delete -f -
 
 image:
-	DOCKER_BUILDKIT=1 docker build -t naglfar-scheduler .
+	DOCKER_BUILDKIT=1 docker build -t naglfar-scheduler docker/scheduler
 
 upload: image
 	minikube cache add naglfar-scheduler
