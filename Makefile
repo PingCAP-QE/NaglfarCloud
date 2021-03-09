@@ -51,28 +51,59 @@ uninstall: manifests
 	kustomize build deploy/crd | kubectl delete -f -
 
 image:
-	DOCKER_BUILDKIT=1 docker build -t naglfar-scheduler docker/scheduler
+	DOCKER_BUILDKIT=1 docker build -t naglfar-scheduler -f docker/scheduler/Dockerfile .
+
+webhook-image: docker/manager/Dockerfile **/*.go
+	DOCKER_BUILDKIT=1 docker build -t naglfarcloud-manager -f docker/manager/Dockerfile .
 
 upload: image
 	minikube cache add naglfar-scheduler
 
+upload-webhook: webhook-image
+	minikube cache add naglfarcloud-manager
+
 fresh:
 	minikube cache delete naglfar-scheduler
+
+fresh-webhook:
+	minikube cache delete naglfarcloud-manager
 
 deploy: install upload deploy/naglfar-scheduler.yaml
 	kubectl apply -f deploy/naglfar-scheduler.yaml
 
+deploy-manager: upload-webhook deploy/webhook/*.yaml
+	kubectl apply -f deploy/webhook/namespace.yaml
+	kubectl apply -f deploy/webhook/manager.yaml
+
+deploy-cert: deploy-manager
+	kubectl apply -f deploy/webhook/cert.yaml
+
+deploy-webhook: deploy-cert
+	kubectl apply -f deploy/webhook/webhook.yaml
+
 upgrade: fresh deploy
 	kubectl rollout restart deployment/naglfar-scheduler -n kube-system
 
-destroy:
+upgrade-webhook: fresh-webhook deploy-webhook
+	kubectl rollout restart deployment/naglfar-labeler -n naglfar-system
+
+destroy: fresh
 	kubectl delete -f deploy/naglfar-scheduler.yaml
+
+destroy-webhook: fresh-webhook
+	kubectl delete -f deploy/webhook/webhook.yaml
+	kubectl delete -f deploy/webhook/cert.yaml
+	kubectl delete -f deploy/webhook/manager.yaml
+	kubectl delete -f deploy/webhook/namespace.yaml
 
 describe:
 	kubectl describe deployment/naglfar-scheduler -n kube-system
 
 log:
 	kubectl logs -f deployment/naglfar-scheduler -n kube-system
+
+log-webhook:
+	kubectl logs -f deployment/naglfar-labeler -n naglfar-system
 
 manifests: pkg/api/v1/*.go
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./pkg/..." output:crd:artifacts:config=deploy/crd/bases
@@ -107,3 +138,5 @@ ifeq (, $(shell which kustomize))
 	}
 endif
 
+install-cert-manager:
+	kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.2.0/cert-manager.yaml

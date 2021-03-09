@@ -38,7 +38,6 @@ func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
 
 	_ = naglfarv1.AddToScheme(scheme)
-	// +kubebuilder:scaffold:scheme
 }
 
 func main() {
@@ -65,7 +64,6 @@ func main() {
 	}
 
 	mgr.GetWebhookServer().Register("/mutate-v1-pod", &webhook.Admission{Handler: &naglfarhook.PodLabeler{Client: mgr.GetClient()}})
-	// +kubebuilder:scaffold:builder
 
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
