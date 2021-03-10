@@ -53,7 +53,7 @@ uninstall: manifests
 image:
 	DOCKER_BUILDKIT=1 docker build -t naglfar-scheduler -f docker/scheduler/Dockerfile .
 
-webhook-image: docker/manager/Dockerfile **/*.go
+webhook-image: docker/manager/Dockerfile *.go
 	DOCKER_BUILDKIT=1 docker build -t naglfarcloud-manager -f docker/manager/Dockerfile .
 
 upload: image
@@ -75,7 +75,7 @@ deploy-webhook: deploy-cert
 upgrade: deploy
 	kubectl rollout restart deployment/naglfar-scheduler -n kube-system
 
-upgrade-webhook: deploy-webhook
+upgrade-webhook: destroy-webhook deploy-webhook
 	kubectl rollout restart deployment/naglfar-labeler -n naglfar-system
 
 destroy:

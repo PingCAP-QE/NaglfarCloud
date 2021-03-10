@@ -45,13 +45,10 @@ func (a *PodLabeler) Handle(ctx context.Context, req admission.Request) admissio
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
-	labelerLog.Info("handle pod %v", pod)
-
 	// mutate the fields in pod
 	if pgAnnotation, ok := pod.Annotations[PodGroupAnnotaion]; ok {
 		if _, ok := pod.Labels[scheduler.PodGroupLabel]; !ok {
 			// add default label
-			labelerLog.Info("set %s=%s for pod %s/%s", scheduler.PodGroupLabel, pgAnnotation, pod.Namespace, pod.Name)
 			pod.Labels[scheduler.PodGroupLabel] = pgAnnotation
 		}
 	}
