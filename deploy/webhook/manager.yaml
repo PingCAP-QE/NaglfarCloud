@@ -16,13 +16,23 @@ spec:
         control-plane: controller-manager
     spec:
       containers:
-      - command:
-        - /manager
+      - args:
+        - --secure-listen-address=0.0.0.0:8443
+        - --upstream=http://127.0.0.1:8080/
+        - --logtostderr=true
+        - --v=10
+        image: gcr.io/kubebuilder/kube-rbac-proxy:v0.5.0
+        name: kube-rbac-proxy
+        ports:
+        - containerPort: 8443
+          name: https
+      - command: ["/manager"]
         args:
+        - --metrics-addr=127.0.0.1:8080
         - --enable-leader-election
         image: naglfarcloud-manager:latest
         imagePullPolicy: IfNotPresent
-        name: manager
+        name: manager        
         resources:
           limits:
             cpu: 100m
@@ -30,4 +40,22 @@ spec:
           requests:
             cpu: 100m
             memory: 20Mi
+        ports:
+        - containerPort: 9443
+          name: webhook-server
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 100m
+            memory: 20Mi
+        volumeMounts:
+        - mountPath: /tmp/k8s-webhook-server/serving-certs
+          name: cert
+          readOnly: true
       terminationGracePeriodSeconds: 10
+      volumes:
+      - name: cert
+        secret:
+          defaultMode: 420
+          secretName: naglfar-labeler-certs
+ 

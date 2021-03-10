@@ -97,7 +97,7 @@ log:
 	kubectl logs -f deployment/naglfar-scheduler -n kube-system
 
 log-webhook:
-	kubectl logs -f deployment/naglfar-labeler -n naglfar-system
+	kubectl logs -f deployment/naglfar-labeler -n naglfar-system -c manager
 
 manifests: pkg/api/v1/*.go
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./pkg/..." output:crd:artifacts:config=deploy/crd/bases
