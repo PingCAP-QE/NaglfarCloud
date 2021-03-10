@@ -20,9 +20,16 @@ import (
 	"net/http"
 
 	corev1 "k8s.io/api/core/v1"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+
+	"github.com/PingCAP-QE/NaglfarCloud/pkg/scheduler"
 )
+
+var labelerLog = ctrl.Log.WithName("labeler")
+
+const PodGroupAnnotaion = scheduler.PodGroupLabel
 
 // PodLabeler is a mutable webhook for pod, used to add the pod group label for pod by it annotations.
 // +kubebuilder:webhook:path=/mutate-v1-pod,mutating=true,failurePolicy=fail,groups="",resources=pods,verbs=create;update,versions=v1,name=mpod.kb.io
@@ -38,7 +45,16 @@ func (a *PodLabeler) Handle(ctx context.Context, req admission.Request) admissio
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
+	labelerLog.Info("handle pod %v", pod)
+
 	// mutate the fields in pod
+	if pgAnnotation, ok := pod.Annotations[PodGroupAnnotaion]; ok {
+		if _, ok := pod.Labels[scheduler.PodGroupLabel]; !ok {
+			// add default label
+			labelerLog.Info("set %s=%s for pod %s/%s", scheduler.PodGroupLabel, pgAnnotation, pod.Namespace, pod.Name)
+			pod.Labels[scheduler.PodGroupLabel] = pgAnnotation
+		}
+	}
 
 	marshaledPod, err := json.Marshal(pod)
 	if err != nil {
