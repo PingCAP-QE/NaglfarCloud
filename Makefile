@@ -57,16 +57,10 @@ webhook-image: docker/manager/Dockerfile **/*.go
 	DOCKER_BUILDKIT=1 docker build -t naglfarcloud-manager -f docker/manager/Dockerfile .
 
 upload: image
-	minikube cache add naglfar-scheduler
+	minikube image load naglfar-scheduler
 
 upload-webhook: webhook-image
-	minikube cache add naglfarcloud-manager
-
-fresh:
-	minikube cache delete naglfar-scheduler
-
-fresh-webhook:
-	minikube cache delete naglfarcloud-manager
+	minikube image load naglfarcloud-manager
 
 deploy: install upload deploy/naglfar-scheduler.yaml
 	kubectl apply -f deploy/naglfar-scheduler.yaml
@@ -81,16 +75,16 @@ deploy-cert: deploy-manager
 deploy-webhook: deploy-cert
 	kubectl apply -f deploy/webhook/webhook.yaml
 
-upgrade: fresh deploy
+upgrade: deploy
 	kubectl rollout restart deployment/naglfar-scheduler -n kube-system
 
-upgrade-webhook: fresh-webhook deploy-webhook
+upgrade-webhook: deploy-webhook
 	kubectl rollout restart deployment/naglfar-labeler -n naglfar-system
 
-destroy: fresh
+destroy:
 	kubectl delete -f deploy/naglfar-scheduler.yaml
 
-destroy-webhook: fresh-webhook
+destroy-webhook:
 	kubectl delete -f deploy/webhook/webhook.yaml
 	kubectl delete -f deploy/webhook/cert.yaml
 	kubectl delete -f deploy/webhook/manager.yaml
