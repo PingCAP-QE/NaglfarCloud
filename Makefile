@@ -59,13 +59,10 @@ webhook-image: docker/manager/Dockerfile **/*.go
 upload: image
 	minikube image load naglfar-scheduler
 
-upload-webhook: webhook-image
-	minikube image load naglfarcloud-manager
-
 deploy: install upload deploy/naglfar-scheduler.yaml
 	kubectl apply -f deploy/naglfar-scheduler.yaml
 
-deploy-manager: upload-webhook deploy/webhook/*.yaml
+deploy-manager: webhook-image deploy/webhook/*.yaml
 	kubectl apply -f deploy/webhook/namespace.yaml
 	kubectl apply -f deploy/webhook/manager.yaml
 
