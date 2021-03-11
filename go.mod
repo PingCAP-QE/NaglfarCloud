@@ -3,10 +3,10 @@ module github.com/PingCAP-QE/NaglfarCloud
 go 1.16
 
 require (
-	k8s.io/api v0.20.2
-	k8s.io/apimachinery v0.20.2
-	k8s.io/client-go v0.20.2
-	k8s.io/component-base v0.20.2
+	k8s.io/api v0.19.8
+	k8s.io/apimachinery v0.19.9-rc.0
+	k8s.io/client-go v0.19.8
+	k8s.io/component-base v0.19.8
 	k8s.io/klog/v2 v2.2.0
 	k8s.io/kubernetes v1.19.8
 	sigs.k8s.io/controller-runtime v0.7.0
