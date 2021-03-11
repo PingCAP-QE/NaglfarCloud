@@ -20,6 +20,10 @@ test: fmt vet
 scheduler: mod format
 	go build -o bin/scheduler main.go
 
+# Build webhook manager binary
+webhook: mod format
+	go build -o bin/webhook webhook/main.go
+
 clean:
 	rm -rf bin
 
@@ -47,28 +51,50 @@ uninstall: manifests
 	kustomize build deploy/crd | kubectl delete -f -
 
 image:
-	DOCKER_BUILDKIT=1 docker build -t naglfar-scheduler .
+	DOCKER_BUILDKIT=1 docker build -t naglfar-scheduler -f docker/scheduler/Dockerfile .
+
+webhook-image: docker/manager/Dockerfile *.go
+	DOCKER_BUILDKIT=1 docker build -t naglfarcloud-manager -f docker/manager/Dockerfile .
 
 upload: image
-	minikube cache add naglfar-scheduler
-
-fresh:
-	minikube cache delete naglfar-scheduler
+	minikube image load naglfar-scheduler
 
 deploy: install upload deploy/naglfar-scheduler.yaml
 	kubectl apply -f deploy/naglfar-scheduler.yaml
 
-upgrade: fresh deploy
+deploy-manager: webhook-image deploy/webhook/*.yaml
+	kubectl apply -f deploy/webhook/namespace.yaml
+	kubectl apply -f deploy/webhook/manager.yaml
+
+deploy-cert: deploy-manager
+	kubectl apply -f deploy/webhook/cert.yaml
+
+deploy-webhook: deploy-cert
+	kubectl apply -f deploy/webhook/webhook.yaml
+
+upgrade: deploy
 	kubectl rollout restart deployment/naglfar-scheduler -n kube-system
+
+upgrade-webhook: destroy-webhook deploy-webhook
+	kubectl rollout restart deployment/naglfar-labeler -n naglfar-system
 
 destroy:
 	kubectl delete -f deploy/naglfar-scheduler.yaml
+
+destroy-webhook:
+	kubectl delete -f deploy/webhook/webhook.yaml
+	kubectl delete -f deploy/webhook/cert.yaml
+	kubectl delete -f deploy/webhook/manager.yaml
+	kubectl delete -f deploy/webhook/namespace.yaml
 
 describe:
 	kubectl describe deployment/naglfar-scheduler -n kube-system
 
 log:
 	kubectl logs -f deployment/naglfar-scheduler -n kube-system
+
+log-webhook:
+	kubectl logs -f deployment/naglfar-labeler -n naglfar-system -c manager
 
 manifests: pkg/api/v1/*.go
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./pkg/..." output:crd:artifacts:config=deploy/crd/bases
@@ -103,3 +129,5 @@ ifeq (, $(shell which kustomize))
 	}
 endif
 
+install-cert-manager:
+	kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.2.0/cert-manager.yaml

@@ -9,7 +9,7 @@ require (
 	k8s.io/component-base v0.19.8
 	k8s.io/klog/v2 v2.2.0
 	k8s.io/kubernetes v1.19.8
-	sigs.k8s.io/controller-runtime v0.5.0
+	sigs.k8s.io/controller-runtime v0.7.0
 )
 
 replace k8s.io/kubernetes => k8s.io/kubernetes v1.19.8
@@ -61,3 +61,5 @@ replace k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.19.8
 replace k8s.io/sample-cli-plugin => k8s.io/sample-cli-plugin v0.19.8
 
 replace k8s.io/sample-controller => k8s.io/sample-controller v0.19.8
+
+replace github.com/googleapis/gnostic => github.com/googleapis/gnostic v0.4.1

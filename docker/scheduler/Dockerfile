@@ -6,9 +6,9 @@ WORKDIR /src
 COPY . .
 
 RUN rm -rf /go/src/
-RUN --mount=type=cache,id=tipocket_go_pkg,target=/go/pkg \
-    --mount=type=cache,id=tipocket_go_cache,target=/root/.cache/go-build \
-    --mount=type=tmpfs,id=tipocket_go_src,target=/go/src/ make clean && make scheduler
+RUN --mount=type=cache,id=naglfar_go_pkg,target=/go/pkg \
+    --mount=type=cache,id=naglfar_go_cache,target=/root/.cache/go-build \
+    --mount=type=tmpfs,id=naglfar_go_src,target=/go/src/ make clean && make scheduler
 
 FROM alpine:3.10
 
