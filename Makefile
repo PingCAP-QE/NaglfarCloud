@@ -101,7 +101,7 @@ manifests: pkg/api/v1/*.go
 
 # Generate code
 generate: manifests
-        $(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./pkg/..."
+	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./pkg/..."
 
 install-controller-gen:
 ifeq (, $(shell which controller-gen))
