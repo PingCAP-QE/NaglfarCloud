@@ -69,12 +69,12 @@ func (s *Scheduler) Name() string {
 }
 
 // Less are used to sort pods in the scheduling queue.
-func (s *Scheduler) Less(pod1, pod2 *framework.QueuedPodInfo) bool {
-	time1 := s.podGroupManager.getScheduleTime(pod1.Pod, pod1.Timestamp)
-	time2 := s.podGroupManager.getScheduleTime(pod2.Pod, pod2.Timestamp)
+func (s *Scheduler) Less(podInfo1, podInfo2 *framework.QueuedPodInfo) bool {
+	time1 := s.podGroupManager.getScheduleTime(podInfo1.Pod, podInfo1.Timestamp)
+	time2 := s.podGroupManager.getScheduleTime(podInfo2.Pod, podInfo2.Timestamp)
 
 	if time1.Equal(time2) {
-		return pod1.Pod.Labels[PodGroupLabel] < pod2.Pod.Labels[PodGroupLabel]
+		return podInfo1.Pod.Labels[PodGroupLabel] < podInfo2.Pod.Labels[PodGroupLabel]
 	}
 
 	return time1.Before(time2)
@@ -134,19 +134,24 @@ func (s *Scheduler) Filter(ctx context.Context, state *framework.CycleState, pod
 			return framework.NewStatus(framework.Error, fmt.Sprintf("cannot get pod group of %s/%s: %s", podInfo.Pod.Namespace, podInfo.Pod.Name, err.Error()))
 		}
 		switch {
+		// can't monopolized a exclusive pod since there are some other pods on that
 		case pgSpec != nil && pgSpec.IsExclusive() && pipgSpec == nil:
-			// cannot monopolized it since there are some other pods on that
 			return framework.NewStatus(framework.Unschedulable, fmt.Sprintf("node %s cannot be monopolized by podgroup %s/%s", nodeInfo.Node().Name, pg.Namespace, pg.Name))
-		case pgSpec == nil && pipgSpec != nil && pipgSpec.IsExclusive():
-			// cannot schedule on it becuase it's exclusive now
-			return framework.NewStatus(framework.Unschedulable, fmt.Sprintf("node is already monopolized by podgroup %s/%s", pipg.Namespace, pipg.Name))
+		case pgSpec == nil:
+			// can't schedule this pod on the node which has been monopolized
+			if pipgSpec != nil && pipgSpec.IsExclusive() {
+				return framework.NewStatus(framework.Unschedulable, fmt.Sprintf("node is already monopolized by podgroup %s/%s", pipg.Namespace, pipg.Name))
+			}
+			// can't schedule this pod on the node since it can't tolerate the exclusive node
+			if isNodeAnnotatedExclusive(nodeInfo) && !canPodTolerateExclusiveNode(pod) {
+				return framework.NewStatus(framework.Unschedulable, fmt.Sprintf("node is annotated with naglfar/exclusive but pod %s/%s can't tolerate it", pod.Namespace, pod.Name))
+			}
 		case pg != nil && pipg != nil && pg.UID != pipg.UID:
 			if pgSpec.IsExclusive() || pipgSpec.IsExclusive() {
 				return framework.NewStatus(framework.Unschedulable, fmt.Sprintf("node is already monopolized by podgroup %s/%s", pipg.Namespace, pipg.Name))
 			}
 		}
 	}
-
 	return framework.NewStatus(framework.Success, "")
 }
 
@@ -338,6 +343,16 @@ func New(cfg runtime.Object, f framework.FrameworkHandle) (framework.Plugin, err
 	return &Scheduler{
 		args:            args,
 		handle:          f,
-		podGroupManager: NewPodGroupManager(f.SnapshotSharedLister(), args.ScheduleTimeout.Unwrap(), informerFactory.Core().V1().Pods(), schedulingClient),
+		podGroupManager: NewPodGroupManager(f.SnapshotSharedLister(), args.ScheduleTimeout.Unwrap(), informerFactory.Core().V1().Pods(), f.ClientSet(), schedulingClient),
 	}, nil
+}
+
+func isNodeAnnotatedExclusive(nodeInfo *framework.NodeInfo) bool {
+	exclusive, exist := nodeInfo.Node().Annotations[exclusiveNodeAnnotation]
+	return exist && exclusive == "true"
+}
+
+func canPodTolerateExclusiveNode(pod *v1.Pod) bool {
+	edn, exist := pod.Annotations[estimationDurationAnnotation]
+	return exist && tolerateEstimationDurationValue == edn
 }

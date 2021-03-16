@@ -11,7 +11,7 @@ spec:
     metadata:
       labels:
         app: test-scheduler
-        podgroup.naglfar: tidb-cluster-1.pd
+        naglfar/podgroup: tidb-cluster-1.pd
     spec:
       schedulerName: naglfar-scheduler
       containers:
@@ -35,7 +35,7 @@ spec:
     metadata:
       labels:
         app: test-scheduler
-        podgroup.naglfar: tidb-cluster-1.tikv
+        naglfar/podgroup: tidb-cluster-1.tikv
     spec:
       schedulerName: naglfar-scheduler
       containers:
@@ -59,7 +59,7 @@ spec:
     metadata:
       labels:
         app: test-scheduler
-        podgroup.naglfar: tidb-cluster-1.tikv
+        naglfar/podgroup: tidb-cluster-1.tikv
     spec:
       schedulerName: naglfar-scheduler
       containers:
@@ -83,7 +83,7 @@ spec:
     metadata:
       labels:
         app: test-scheduler
-        podgroup.naglfar: tidb-cluster-1.tikv
+        naglfar/podgroup: tidb-cluster-1.tikv
     spec:
       schedulerName: naglfar-scheduler
       containers:
@@ -107,7 +107,7 @@ spec:
     metadata:
       labels:
         app: test-scheduler
-        podgroup.naglfar: tidb-cluster-1.tidb
+        naglfar/podgroup: tidb-cluster-1.tidb
     spec:
       schedulerName: naglfar-scheduler
       containers:
@@ -131,7 +131,7 @@ spec:
     metadata:
       labels:
         app: test-scheduler
-        podgroup.naglfar: tidb-cluster-1.tidb
+        naglfar/podgroup: tidb-cluster-1.tidb
     spec:
       schedulerName: naglfar-scheduler
       containers:
@@ -155,7 +155,7 @@ spec:
     metadata:
       labels:
         app: test-scheduler
-        podgroup.naglfar: tidb-cluster-1.tidb
+        naglfar/podgroup: tidb-cluster-1.tidb
     spec:
       schedulerName: naglfar-scheduler
       containers:
@@ -180,7 +180,7 @@ spec:
     metadata:
       labels:
         app: test-scheduler
-        podgroup.naglfar: tidb-cluster-2.pd
+        naglfar/podgroup: tidb-cluster-2.pd
     spec:
       schedulerName: naglfar-scheduler
       containers:
@@ -204,7 +204,7 @@ spec:
     metadata:
       labels:
         app: test-scheduler
-        podgroup.naglfar: tidb-cluster-2.tikv
+        naglfar/podgroup: tidb-cluster-2.tikv
     spec:
       schedulerName: naglfar-scheduler
       containers:
@@ -228,7 +228,7 @@ spec:
     metadata:
       labels:
         app: test-scheduler
-        podgroup.naglfar: tidb-cluster-2.tikv
+        naglfar/podgroup: tidb-cluster-2.tikv
     spec:
       schedulerName: naglfar-scheduler
       containers:
@@ -252,7 +252,7 @@ spec:
     metadata:
       labels:
         app: test-scheduler
-        podgroup.naglfar: tidb-cluster-2.tikv
+        naglfar/podgroup: tidb-cluster-2.tikv
     spec:
       schedulerName: naglfar-scheduler
       containers:
@@ -276,7 +276,7 @@ spec:
     metadata:
       labels:
         app: test-scheduler
-        podgroup.naglfar: tidb-cluster-2.tidb
+        naglfar/podgroup: tidb-cluster-2.tidb
     spec:
       schedulerName: naglfar-scheduler
       containers:
@@ -300,7 +300,7 @@ spec:
     metadata:
       labels:
         app: test-scheduler
-        podgroup.naglfar: tidb-cluster-2.tidb
+        naglfar/podgroup: tidb-cluster-2.tidb
     spec:
       schedulerName: naglfar-scheduler
       containers:
@@ -324,7 +324,7 @@ spec:
     metadata:
       labels:
         app: test-scheduler
-        podgroup.naglfar: tidb-cluster-2.tidb
+        naglfar/podgroup: tidb-cluster-2.tidb
     spec:
       schedulerName: naglfar-scheduler
       containers:

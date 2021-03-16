@@ -1,3 +1,6 @@
+IMG_PREFIX ?=
+IMG_SCHEDULER ?= ${IMG_PREFIX}naglfar-scheduler
+IMG_MANAGER ?= ${IMG_PREFIX}naglfarcloud-manager
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true"
 
@@ -42,66 +45,66 @@ mod:
 	GO111MODULE=on go mod tidy
 	@git diff --exit-code -- go.sum go.mod
 
-# Install CRDs into a cluster
-install: manifests
-	kustomize build deploy/crd | kubectl apply -f -
-
-# Uninstall CRDs from a cluster
-uninstall: manifests
-	kustomize build deploy/crd | kubectl delete -f -
-
-image:
-	DOCKER_BUILDKIT=1 docker build -t naglfar-scheduler -f docker/scheduler/Dockerfile .
-
-webhook-image: docker/manager/Dockerfile *.go
-	DOCKER_BUILDKIT=1 docker build -t naglfarcloud-manager -f docker/manager/Dockerfile .
-
-upload: image
-	minikube image load naglfar-scheduler
-
-deploy: install upload deploy/naglfar-scheduler.yaml
-	kubectl apply -f deploy/naglfar-scheduler.yaml
-
-deploy-manager: webhook-image deploy/webhook/*.yaml
-	kubectl apply -f deploy/webhook/namespace.yaml
-	kubectl apply -f deploy/webhook/manager.yaml
-
-deploy-cert: deploy-manager
-	kubectl apply -f deploy/webhook/cert.yaml
-
-deploy-webhook: deploy-cert
-	kubectl apply -f deploy/webhook/webhook.yaml
-
-upgrade: deploy
-	kubectl rollout restart deployment/naglfar-scheduler -n kube-system
-
-upgrade-webhook: destroy-webhook deploy-webhook
-	kubectl rollout restart deployment/naglfar-labeler -n naglfar-system
-
-destroy:
-	kubectl delete -f deploy/naglfar-scheduler.yaml
-
-destroy-webhook:
-	kubectl delete -f deploy/webhook/webhook.yaml
-	kubectl delete -f deploy/webhook/cert.yaml
-	kubectl delete -f deploy/webhook/manager.yaml
-	kubectl delete -f deploy/webhook/namespace.yaml
-
-describe:
-	kubectl describe deployment/naglfar-scheduler -n kube-system
-
-log:
-	kubectl logs -f deployment/naglfar-scheduler -n kube-system
-
-log-webhook:
-	kubectl logs -f deployment/naglfar-labeler -n naglfar-system -c manager
-
-manifests: pkg/api/v1/*.go
+manifests:
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./pkg/..." output:crd:artifacts:config=deploy/crd/bases
 
 # Generate code
 generate: manifests
-        $(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./pkg/..."
+	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./pkg/..."
+
+# Install CRDs into a cluster
+install-manifests: manifests
+	kustomize build deploy/crd | kubectl apply -f -
+
+# Uninstall CRDs from a cluster
+uninstall-manifests: manifests
+	kustomize build deploy/crd | kubectl delete -f -
+
+scheduler-image:
+	DOCKER_BUILDKIT=1 docker build -t ${IMG_SCHEDULER} -f docker/scheduler/Dockerfile .
+
+manager-image:
+	DOCKER_BUILDKIT=1 docker build -t ${IMG_MANAGER} -f docker/manager/Dockerfile .
+
+upload-image: scheduler-image manager-image
+	docker push ${IMG_SCHEDULER}
+	docker push ${IMG_MANAGER}
+
+deploy-scheduler: install-manifests
+	kubectl apply -f deploy/naglfar-scheduler.yaml
+
+deploy-manager: install-manifests
+	kubectl apply -f deploy/webhook/namespace.yaml
+	kubectl apply -f deploy/webhook/cert.yaml
+	kubectl apply -f deploy/webhook/manager.yaml
+	kubectl apply -f deploy/webhook/webhook.yaml
+
+upgrade-scheduler: deploy-scheduler
+	kubectl rollout restart deployment/naglfar-scheduler -n kube-system
+
+upgrade-manager: deploy-manager
+	kubectl rollout restart deployment/naglfar-labeler -n naglfar-system
+
+destroy-scheduler:
+	kubectl delete -f deploy/naglfar-scheduler.yaml
+
+destroy-manager:
+	kubectl delete -f deploy/webhook/webhook.yaml
+	kubectl delete -f deploy/webhook/manager.yaml
+	kubectl delete -f deploy/webhook/cert.yaml
+	kubectl delete -f deploy/webhook/namespace.yaml
+
+describe-scheduler:
+	kubectl describe deployment/naglfar-scheduler -n kube-system
+
+describe-manager:
+	kubectl describe deployment/naglfar-labeler -n naglfar-system
+
+log-scheduler:
+	kubectl logs -f deployment/naglfar-scheduler -n kube-system
+
+log-manager:
+	kubectl logs -f deployment/naglfar-labeler -n naglfar-system -c manager
 
 install-controller-gen:
 ifeq (, $(shell which controller-gen))

@@ -9,8 +9,13 @@ import (
 
 const (
 	// PodGroupLabel is the default label of naglfar scheduler
-	PodGroupLabel     = "podgroup.naglfar"
-	subGroupSeparator = "."
+	PodGroupLabel           = "naglfar/podgroup"
+	subGroupSeparator       = "."
+	exclusiveNodeAnnotation = "naglfar/exclusive"
+
+	// for elastic exclusive node preemption
+	estimationDurationAnnotation    = "estimation-duration"
+	tolerateEstimationDurationValue = "short-term"
 )
 
 var (

@@ -23,6 +23,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	informerv1 "k8s.io/client-go/informers/core/v1"
+	clientset "k8s.io/client-go/kubernetes"
 	listerv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/klog/v2"
 	framework "k8s.io/kubernetes/pkg/scheduler/framework/v1alpha1"
@@ -42,24 +43,29 @@ type PodGroupManager struct {
 	ctx context.Context
 	// snapshotSharedLister is pod shared list
 	snapshotSharedLister framework.SharedLister
-
 	// scheduleTimeout is the default time when group scheduling.
 	// If podgroup's ScheduleTimeoutSeconds set, that would be used.
 	scheduleTimeout time.Duration
-
 	// podLister is pod lister
 	podLister listerv1.PodLister
-
+	// kubeClient is kube clientset
+	kubeClientSet clientset.Interface
+	// schedulingClient is podGroupClient
 	schedulingClient *client.SchedulingClient
 }
 
 // NewPodGroupManager is the constructor of PodGroupManager
-func NewPodGroupManager(snapshotSharedLister framework.SharedLister, scheduleTimeout time.Duration, podInformer informerv1.PodInformer, schedulingClient *client.SchedulingClient) *PodGroupManager {
+func NewPodGroupManager(snapshotSharedLister framework.SharedLister,
+	scheduleTimeout time.Duration,
+	podInformer informerv1.PodInformer,
+	kubeClientSet clientset.Interface,
+	schedulingClient *client.SchedulingClient) *PodGroupManager {
 	return &PodGroupManager{
 		ctx:                  context.Background(),
 		snapshotSharedLister: snapshotSharedLister,
 		scheduleTimeout:      scheduleTimeout,
 		podLister:            podInformer.Lister(),
+		kubeClientSet:        kubeClientSet,
 		schedulingClient:     schedulingClient,
 	}
 }
