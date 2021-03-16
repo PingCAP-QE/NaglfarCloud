@@ -31,10 +31,6 @@ import (
 	"github.com/PingCAP-QE/NaglfarCloud/pkg/client"
 )
 
-// PodGroupLabel is the default label of naglfar scheduler
-const PodGroupLabel = "podgroup.naglfar"
-const subGroupSeparator = "."
-
 var errorWaiting = fmt.Errorf("waiting")
 
 func subGroupNotFound(podGroup *apiv1.PodGroup, name string) error {
@@ -71,50 +67,46 @@ func NewPodGroupManager(snapshotSharedLister framework.SharedLister, scheduleTim
 // PreFilter filters out a pod if it
 // - Check if the numbers of total pods is less than minMenber
 func (mgr *PodGroupManager) PreFilter(ctx context.Context, pod *corev1.Pod) error {
-	super, sub, err := mgr.podGroups(pod)
+	pg, pgSpec, err := mgr.podGroup(pod)
 	if err != nil {
 		return fmt.Errorf("cannot get pod group: %s", err.Error())
 	}
-
-	if super == nil {
+	if pg == nil {
 		return nil
 	}
-
-	friends, err := mgr.podLister.List(newSubGroupSelector(groupNames(pod)))
+	friends, err := mgr.podLister.List(getPodGroupNameSliceFromPod(pod))
 	if err != nil {
 		return fmt.Errorf("cannot list pods in the same group: %s", err.Error())
 	}
 
-	if len(friends) < int(sub.MinMember) {
-		return fmt.Errorf("the numbers of pods in the same group is less than minMember: %d < %d", len(friends), sub.MinMember)
+	if len(friends) < int(pgSpec.MinMember) {
+		return fmt.Errorf("the numbers of pods in the same group is less than minMember: %d < %d", len(friends), pgSpec.MinMember)
 	}
 	return nil
 }
 
 // Permit permits a pod to run
 func (mgr *PodGroupManager) Permit(ctx context.Context, pod *corev1.Pod, nodeName string) (bool, error) {
-	podGroup, subPodGroup, err := mgr.podGroups(pod)
-
+	pg, pgSpec, err := mgr.podGroup(pod)
 	if err != nil {
 		return false, fmt.Errorf("cannot get pod group: %v", err)
 	}
-
-	if podGroup == nil {
+	if pg == nil {
 		return true, nil
 	}
 
-	assigned := mgr.calculateAssignedPods(pod)
+	assigned := mgr.calculateAssignedPods(pod.Namespace, getPodGroupNameSliceFromPod(pod))
 	// The number of pods that have been assigned nodes is calculated from the snapshot.
 	// The current pod in not included in the snapshot during the current scheduling cycle.
-	if assigned+1 < int(subPodGroup.MinMember) {
+	if assigned+1 < int(pgSpec.MinMember) {
 		return false, errorWaiting
 	}
 	return true, nil
 }
 
-// podGroups returns the super pod group and sub pod group that a Pod belongs to.
-func (mgr *PodGroupManager) podGroups(pod *corev1.Pod) (*apiv1.PodGroup, *apiv1.PodGroupSpec, error) {
-	names := groupNames(pod)
+// podGroup returns the super pod group and sub pod group that a Pod belongs to.
+func (mgr *PodGroupManager) podGroup(pod *corev1.Pod) (*apiv1.PodGroup, *apiv1.PodGroupSpec, error) {
+	names := getPodGroupNameSliceFromPod(pod)
 	if len(names) == 0 {
 		return nil, nil, nil
 	}
@@ -124,41 +116,38 @@ func (mgr *PodGroupManager) podGroups(pod *corev1.Pod) (*apiv1.PodGroup, *apiv1.
 		return nil, nil, err
 	}
 
-	subPodGroup := &podGroup.Spec
+	pgSpec := &podGroup.Spec
 	for _, name := range names[1:] {
-		if subPodGroup.SubGroups == nil {
+		if pgSpec.SubGroups == nil {
 			return nil, nil, subGroupNotFound(podGroup, name)
 		}
-		spec, ok := subPodGroup.SubGroups[name]
+		spec, ok := pgSpec.SubGroups[name]
 		if !ok {
 			return nil, nil, subGroupNotFound(podGroup, name)
 		}
 
-		if spec.Exclusive == nil && subPodGroup.Exclusive != nil {
+		if spec.Exclusive == nil && pgSpec.Exclusive != nil {
 			// inherit exclusive from super group
-			spec.Exclusive = &*subPodGroup.Exclusive
+			spec.Exclusive = pgSpec.Exclusive
 		}
-		subPodGroup = &spec
+		pgSpec = &spec
 	}
 
-	return podGroup, subPodGroup, nil
+	return podGroup, pgSpec, nil
 }
 
-func (mgr *PodGroupManager) calculateAssignedPods(target *corev1.Pod) int {
+func (mgr *PodGroupManager) calculateAssignedPods(namespace string, pgNameSlice PodGroupNameSlice) int {
 	nodeInfos, err := mgr.snapshotSharedLister.NodeInfos().List()
 	if err != nil {
-		klog.Errorf("Cannot get nodeInfos from frameworkHandle: %v", err)
+		klog.Errorf("cannot get nodeInfos from frameworkHandle: %v", err)
 		return 0
 	}
 	var count int
 	for _, nodeInfo := range nodeInfos {
 		for _, podInfo := range nodeInfo.Pods {
 			pod := podInfo.Pod
-			prefixNames := groupNames(target)
-			names := groupNames(pod)
-			if len(names) >= len(prefixNames) &&
-				joinNames(names[0:len(prefixNames)]) == joinNames(prefixNames) &&
-				pod.Namespace == target.Namespace &&
+			pgNameS := getPodGroupNameSliceFromPod(pod)
+			if pod.Namespace == namespace && pgNameS.IsBelongTo(pgNameSlice) &&
 				pod.Spec.NodeName != "" {
 				count++
 			}
@@ -169,41 +158,36 @@ func (mgr *PodGroupManager) calculateAssignedPods(target *corev1.Pod) int {
 }
 
 // reschedule is a method to reschedule pod group to end of queue.
-// the duration is the delay of current last pog group.
 func (mgr *PodGroupManager) reschedule(podGroup *apiv1.PodGroup) (*apiv1.PodGroup, error) {
-	podGroup.Status.NextSchedulingTime.Time = time.Now()
+	podGroup.Status.RescheduleTime.Time = time.Now()
 	return mgr.schedulingClient.PodGroups(podGroup.Namespace).UpdateStatus(mgr.ctx, podGroup, metav1.UpdateOptions{})
 }
 
-func (mgr *PodGroupManager) getSchedulingTime(pod *corev1.Pod, defaultTime time.Time) time.Time {
-	podGroup, _, _ := mgr.podGroups(pod)
+func (mgr *PodGroupManager) getScheduleTime(pod *corev1.Pod, defaultTime time.Time) time.Time {
+	podGroup, _, _ := mgr.podGroup(pod)
 	if podGroup == nil {
 		return defaultTime
 	}
 
-	return podGroup.SchedulingTime()
+	return podGroup.ScheduleTime()
 }
 
-// groupPath is a function to get podgroup label of pod
-func groupPath(pod *corev1.Pod) string {
+// getPodGroupNameFromPod is a function to get podgroup label of pod
+func getPodGroupNameFromPod(pod *corev1.Pod) string {
 	return strings.TrimSpace(pod.Labels[PodGroupLabel])
 }
 
-// groupNames is a function to split podgroup by slash
+// getPodGroupNameSliceFromPod is a function to split podgroup by dot
 // return nil if the podgroup label is not set
-func groupNames(pod *corev1.Pod) []string {
-	path := groupPath(pod)
+func getPodGroupNameSliceFromPod(pod *corev1.Pod) PodGroupNameSlice {
+	path := getPodGroupNameFromPod(pod)
 	if path == "" {
 		return nil
 	}
 	return strings.Split(path, subGroupSeparator)
 }
 
-func joinNames(names []string) string {
-	return strings.Join(names, subGroupSeparator)
-}
-
-func isControlledByDaemon(pod *corev1.Pod) bool {
+func isControlledByDaemonSet(pod *corev1.Pod) bool {
 	controller := metav1.GetControllerOf(pod)
 	if controller == nil {
 		return false

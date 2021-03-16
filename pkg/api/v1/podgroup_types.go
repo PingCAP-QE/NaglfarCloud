@@ -49,9 +49,9 @@ type PodGroupStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// NextSchedulingTime is the time to schedule this pod group
+	// RescheduleTime is the reschedule time of this pod group
 	// +optional
-	NextSchedulingTime *metav1.Time `json:"nextchedulingTime,omitempty"`
+	RescheduleTime *metav1.Time `json:"rescheduleTime,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -75,14 +75,14 @@ func (pg *PodGroupSpec) IsExclusive() bool {
 	return *pg.Exclusive
 }
 
-// SchedulingTime is a wrapper of NextSchedulingTime field of status,
-// it returns create time if NextSchedulingTime field is nil.
-func (pg *PodGroup) SchedulingTime() time.Time {
-	if pg.Status.NextSchedulingTime == nil {
+// ScheduleTime is a wrapper of RescheduleTime field of status,
+// it returns create time if RescheduleTime field is nil.
+func (pg *PodGroup) ScheduleTime() time.Time {
+	if pg.Status.RescheduleTime == nil {
 		return pg.CreationTimestamp.Time
 	}
 
-	return pg.Status.NextSchedulingTime.Time
+	return pg.Status.RescheduleTime.Time
 }
 
 // +kubebuilder:object:root=true

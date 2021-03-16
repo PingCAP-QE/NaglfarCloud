@@ -54,8 +54,8 @@ spec:
         status:
           description: PodGroupStatus defines the observed state of PodGroup
           properties:
-            nextchedulingTime:
-              description: NextSchedulingTime is the time to schedule this pod group
+            rescheduleTime:
+              description: RescheduleTime is the reschedule time of this pod group
               format: date-time
               type: string
           type: object
