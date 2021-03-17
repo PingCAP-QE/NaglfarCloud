@@ -13,18 +13,18 @@ endif
 
 CONTROLLER_GEN=$(GOBIN)/controller-gen
 
-all: scheduler
+all: manifests scheduler manager
 
 # Run tests
 test: fmt vet
 	go test ./... -coverprofile cover.out
 
-# Build manager binary
+# Build scheduler binary
 scheduler: mod format
 	go build -o bin/scheduler main.go
 
 # Build webhook manager binary
-webhook: mod format
+manager: mod format
 	go build -o bin/webhook webhook/main.go
 
 clean:
@@ -47,9 +47,6 @@ mod:
 
 manifests:
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./pkg/..." output:crd:artifacts:config=deploy/crd/bases
-
-# Generate code
-generate: manifests
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./pkg/..."
 
 # Install CRDs into a cluster
