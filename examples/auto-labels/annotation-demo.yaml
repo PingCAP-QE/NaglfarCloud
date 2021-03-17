@@ -4,6 +4,7 @@ metadata:
   name: nginx-cluster
 spec:
   minMember: 10
+  scheduleTimeout: 100s
 ---
 apiVersion: v1
 kind: Service

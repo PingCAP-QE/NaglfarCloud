@@ -46,6 +46,10 @@ spec:
                 the scheduler will not start anyone.
               format: int32
               type: integer
+            scheduleTimeout:
+              description: ScheduleTimeout sets the max wait scheduing time before
+                the podGroup is ready
+              type: string
             subGroups:
               additionalProperties: {}
               description: SubGroups is a list of sub pod groups

@@ -17,6 +17,7 @@ limitations under the License.
 package v1
 
 import (
+	"fmt"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -42,6 +43,10 @@ type PodGroupSpec struct {
 	// SubGroups is a list of sub pod groups
 	// +optional
 	SubGroups map[string]PodGroupSpec `json:"subGroups,omitempty"`
+
+	// ScheduleTimeout sets the max wait scheduing time before the podGroup is ready
+	// +optional
+	ScheduleTimeout *Duration `json:"scheduleTimeout,omitempty"`
 }
 
 // PodGroupStatus defines the observed state of PodGroup
@@ -73,6 +78,17 @@ func (pg *PodGroupSpec) IsExclusive() bool {
 		return false
 	}
 	return *pg.Exclusive
+}
+
+func (pg *PodGroupSpec) GetScheduleTimeout() (*time.Duration, error) {
+	if pg.ScheduleTimeout == nil {
+		return nil, nil
+	}
+	d, err := pg.ScheduleTimeout.Parse()
+	if err != nil {
+		return nil, fmt.Errorf("parse scheduleTimeout %s error: %v", *pg.ScheduleTimeout, err)
+	}
+	return &d, nil
 }
 
 // ScheduleTime is a wrapper of RescheduleTime field of status,

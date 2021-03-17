@@ -93,22 +93,32 @@ func (mgr *PodGroupManager) PreFilter(ctx context.Context, pod *corev1.Pod) erro
 }
 
 // Permit permits a pod to run
-func (mgr *PodGroupManager) Permit(ctx context.Context, pod *corev1.Pod, nodeName string) (bool, error) {
+func (mgr *PodGroupManager) Permit(
+	ctx context.Context,
+	pod *corev1.Pod,
+	nodeName string,
+	defaultTimeout time.Duration) (bool, time.Duration, error) {
 	pg, pgSpec, err := mgr.podGroup(pod)
 	if err != nil {
-		return false, fmt.Errorf("cannot get pod group: %v", err)
+		return false, 0, fmt.Errorf("cannot get pod group: %v", err)
 	}
 	if pg == nil {
-		return true, nil
+		return true, 0, nil
 	}
 
 	assigned := mgr.calculateAssignedPods(pod.Namespace, getPodGroupNameSliceFromPod(pod))
 	// The number of pods that have been assigned nodes is calculated from the snapshot.
 	// The current pod in not included in the snapshot during the current scheduling cycle.
 	if assigned+1 < int(pgSpec.MinMember) {
-		return false, errorWaiting
+		waitTimeout := defaultTimeout
+		if timeout, err := pgSpec.GetScheduleTimeout(); err != nil {
+			return false, 0, err
+		} else if timeout != nil {
+			waitTimeout = *timeout
+		}
+		return false, waitTimeout, errorWaiting
 	}
-	return true, nil
+	return true, 0, nil
 }
 
 // podGroup returns the super pod group and sub pod group that a Pod belongs to.
@@ -136,6 +146,10 @@ func (mgr *PodGroupManager) podGroup(pod *corev1.Pod) (*apiv1.PodGroup, *apiv1.P
 		if spec.Exclusive == nil && pgSpec.Exclusive != nil {
 			// inherit exclusive from super group
 			spec.Exclusive = pgSpec.Exclusive
+		}
+		if spec.ScheduleTimeout == nil && pgSpec.ScheduleTimeout != nil {
+			// inherit scheduleTimeout from super group
+			spec.ScheduleTimeout = pgSpec.ScheduleTimeout
 		}
 		pgSpec = &spec
 	}

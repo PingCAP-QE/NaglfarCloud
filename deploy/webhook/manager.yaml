@@ -39,7 +39,6 @@ rules:
   - create
   - update
 ---
-
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
@@ -53,9 +52,7 @@ subjects:
 - kind: ServiceAccount
   name: default
   namespace: naglfar-system
-
 ---
-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -80,6 +77,7 @@ spec:
         - --logtostderr=true
         - --v=10
         image: gcr.io/kubebuilder/kube-rbac-proxy:v0.5.0
+        imagePullPolicy: IfNotPresent
         name: kube-rbac-proxy
         ports:
         - containerPort: 8443
@@ -88,24 +86,20 @@ spec:
         args:
         - --metrics-addr=127.0.0.1:8080
         - --enable-leader-election
-        image: naglfarcloud-manager:latest
+        image: naglfarcloud-manager
         imagePullPolicy: IfNotPresent
         name: manager        
         resources:
           limits:
-            cpu: 100m
-            memory: 30Mi
+            cpu: 1000m
+            memory: 300Mi
           requests:
-            cpu: 100m
-            memory: 20Mi
+            cpu: 1000m
+            memory: 300Mi
         ports:
         - containerPort: 9443
           name: webhook-server
           protocol: TCP
-        resources:
-          requests:
-            cpu: 100m
-            memory: 20Mi
         volumeMounts:
         - mountPath: /tmp/k8s-webhook-server/serving-certs
           name: cert

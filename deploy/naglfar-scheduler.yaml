@@ -125,10 +125,18 @@ rules:
       - "naglfar.pingcap.com"
     resources:
       - podgroups
+      - podgroups/status
     verbs:
       - create
       - get
       - list
+      - update
+  - apiGroups:
+      - "naglfar.pingcap.com"
+    resources:
+      - podgroups/status
+    verbs:
+      - patch
       - update
 ---
 apiVersion: v1
@@ -228,7 +236,7 @@ spec:
             type: FileOrCreate
           name: kubeconfig
       containers:
-        - name: naglfar-scheduler-ctrl
+        - name: naglfar-scheduler
           image: naglfar-scheduler:latest
           imagePullPolicy: IfNotPresent
           args:

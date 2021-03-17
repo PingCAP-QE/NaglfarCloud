@@ -30,8 +30,8 @@ import (
 	schedulerRuntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 	framework "k8s.io/kubernetes/pkg/scheduler/framework/v1alpha1"
 
+	util "github.com/PingCAP-QE/NaglfarCloud/pkg/api/v1"
 	"github.com/PingCAP-QE/NaglfarCloud/pkg/client"
-	"github.com/PingCAP-QE/NaglfarCloud/pkg/util"
 )
 
 // Name is the name of naglfar scheduler
@@ -253,10 +253,7 @@ func (s *Scheduler) Permit(ctx context.Context, state *framework.CycleState, pod
 	if pgName == "" {
 		return framework.NewStatus(framework.Success, ""), 0
 	}
-
-	waitTime := s.args.ScheduleTimeout.Unwrap()
-	namespace := pod.Namespace
-	ready, err := s.podGroupManager.Permit(ctx, pod, nodeName)
+	ready, waitTime, err := s.podGroupManager.Permit(ctx, pod, nodeName, s.args.ScheduleTimeout.Unwrap())
 	if err != nil {
 		if err == errorWaiting {
 			klog.Infof("Pod: %s/%s is waiting to be scheduled to node: %v", pod.Namespace, pod.Name, nodeName)
@@ -271,6 +268,7 @@ func (s *Scheduler) Permit(ctx context.Context, state *framework.CycleState, pod
 		return framework.NewStatus(framework.Wait, ""), waitTime
 	}
 
+	namespace := pod.Namespace
 	s.handle.IterateOverWaitingPods(func(waitingPod framework.WaitingPod) {
 		pod := waitingPod.GetPod()
 		if pod.Namespace == namespace && getPodGroupNameFromPod(pod) == pgName {
