@@ -41,7 +41,7 @@ func (p PodGroupNameSlice) IsEmpty() bool {
 	return len(p) == 0
 }
 
-// IsUpperPodGroupOf checks whether thiis belongs to ancestor
+// IsUpperPodGroupOf checks whether this belongs to ancestor
 func (p PodGroupNameSlice) IsBelongTo(ancestor PodGroupNameSlice) bool {
 	if p.IsEmpty() || ancestor.IsEmpty() {
 		return false
@@ -62,7 +62,6 @@ func (p PodGroupNameSlice) Matches(labels labels.Labels) bool {
 	if !labels.Has(PodGroupLabel) {
 		return false
 	}
-
 	pgns := ParsePodGroupNameSliceFromStr(labels.Get(PodGroupLabel))
 	return pgns.IsBelongTo(p)
 }

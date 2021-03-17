@@ -81,9 +81,13 @@ deploy-manager: install-manifests
 
 upgrade-scheduler: deploy-scheduler
 	kubectl rollout restart deployment/naglfar-scheduler -n kube-system
+	kubectl rollout status deployment/naglfar-scheduler -n kube-system
 
 upgrade-manager: deploy-manager
+	# kubectl delete -f deploy/webhook/webhook.yaml
 	kubectl rollout restart deployment/naglfar-labeler -n naglfar-system
+	kubectl rollout status deployment/naglfar-labeler -n naglfar-system
+	# kubectl apply -f deploy/webhook/webhook.yaml
 
 destroy-scheduler:
 	kubectl delete -f deploy/naglfar-scheduler.yaml

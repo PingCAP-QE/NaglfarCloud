@@ -24,6 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/informers"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
 	schedulerRuntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
@@ -85,6 +86,7 @@ func (s *Scheduler) Less(podInfo1, podInfo2 *framework.QueuedPodInfo) bool {
 func (s *Scheduler) PreFilter(ctx context.Context, state *framework.CycleState, pod *v1.Pod) *framework.Status {
 	// If any validation failed, a no-op state data is injected to "state" so that in later
 	// phases we can tell whether the failure comes from PreFilter or not.
+	klog.V(2).Infof("Pre-filter %v", pod.Name)
 	if err := s.podGroupManager.PreFilter(ctx, pod); err != nil {
 		klog.Error(err)
 		state.Write(s.getStateKey(), noOp)
@@ -321,38 +323,42 @@ func (s *Scheduler) getStateKey() framework.StateKey {
 // New is the constructor of Scheduler
 func New(cfg runtime.Object, f framework.FrameworkHandle) (framework.Plugin, error) {
 	args := new(Args)
-
 	if err := schedulerRuntime.DecodeInto(cfg, args); err != nil {
 		return nil, err
 	}
-
 	if _, err := args.ScheduleTimeout.Parse(); err != nil {
 		return nil, fmt.Errorf("invalid ScheduleTimeout: %s", err.Error())
 	}
+	klog.V(3).Infof("Get plugin config args: %+v", args)
 
 	conf, err := clientcmd.BuildConfigFromFlags("", "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to init rest.Config: %v", err)
 	}
-
 	schedulingClient := client.NewForConfigOrDie(conf)
 
 	fieldSelector, err := fields.ParseSelector(",status.phase!=" + string(v1.PodSucceeded) + ",status.phase!=" + string(v1.PodFailed))
 	if err != nil {
 		klog.Fatalf("ParseSelector failed %+v", err)
 	}
-
 	informerFactory := informers.NewSharedInformerFactoryWithOptions(f.ClientSet(), 0, informers.WithTweakListOptions(func(opt *metav1.ListOptions) {
 		opt.LabelSelector = PodGroupLabel
 		opt.FieldSelector = fieldSelector.String()
 	}))
-
-	klog.V(3).Infof("Get plugin config args: %+v", args)
-	return &Scheduler{
+	podInformer := informerFactory.Core().V1().Pods()
+	ctx := context.TODO()
+	plugin := &Scheduler{
 		args:            args,
 		handle:          f,
-		podGroupManager: NewPodGroupManager(f.SnapshotSharedLister(), args.ScheduleTimeout.Unwrap(), informerFactory.Core().V1().Pods(), f.ClientSet(), schedulingClient),
-	}, nil
+		podGroupManager: NewPodGroupManager(f.SnapshotSharedLister(), args.ScheduleTimeout.Unwrap(), podInformer, f.ClientSet(), schedulingClient),
+	}
+
+	informerFactory.Start(ctx.Done())
+	if !cache.WaitForCacheSync(ctx.Done(), podInformer.Informer().HasSynced) {
+		klog.Error("Cannot sync caches")
+		return nil, fmt.Errorf("WaitForCacheSync failed")
+	}
+	return plugin, nil
 }
 
 func isNodeAnnotatedExclusive(nodeInfo *framework.NodeInfo) bool {

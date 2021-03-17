@@ -80,13 +80,14 @@ func (mgr *PodGroupManager) PreFilter(ctx context.Context, pod *corev1.Pod) erro
 	if pg == nil {
 		return nil
 	}
-	friends, err := mgr.podLister.List(getPodGroupNameSliceFromPod(pod))
-	if err != nil {
-		return fmt.Errorf("cannot list pods in the same group: %s", err.Error())
-	}
+	pgns := getPodGroupNameSliceFromPod(pod)
+	friends, err := mgr.podLister.Pods(pod.Namespace).List(pgns)
 
+	if err != nil {
+		return fmt.Errorf("cannot list pods in the podGroup %s: %s", pgns.PodGroupName(), err.Error())
+	}
 	if len(friends) < int(pgSpec.MinMember) {
-		return fmt.Errorf("the numbers of pods in the same group is less than minMember: %d < %d", len(friends), pgSpec.MinMember)
+		return fmt.Errorf("the number of pods in the podGroup %s is less than minMember: %d < %d", pgns.PodGroupName(), len(friends), pgSpec.MinMember)
 	}
 	return nil
 }
@@ -165,6 +166,9 @@ func (mgr *PodGroupManager) calculateAssignedPods(namespace string, pgNameSlice 
 
 // reschedule is a method to reschedule pod group to end of queue.
 func (mgr *PodGroupManager) reschedule(podGroup *apiv1.PodGroup) (*apiv1.PodGroup, error) {
+	if podGroup.Status.RescheduleTime == nil {
+		podGroup.Status.RescheduleTime = &metav1.Time{}
+	}
 	podGroup.Status.RescheduleTime.Time = time.Now()
 	return mgr.schedulingClient.PodGroups(podGroup.Namespace).UpdateStatus(mgr.ctx, podGroup, metav1.UpdateOptions{})
 }
