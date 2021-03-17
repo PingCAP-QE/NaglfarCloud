@@ -237,7 +237,7 @@ spec:
           name: kubeconfig
       containers:
         - name: naglfar-scheduler
-          image: naglfar-scheduler:latest
+          image: naglfar-scheduler
           imagePullPolicy: IfNotPresent
           args:
             - /bin/kube-scheduler
