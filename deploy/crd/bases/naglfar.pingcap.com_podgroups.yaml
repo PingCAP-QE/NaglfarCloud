@@ -58,10 +58,12 @@ spec:
         status:
           description: PodGroupStatus defines the observed state of PodGroup
           properties:
-            rescheduleTime:
+            rescheduleTimes:
+              additionalProperties:
+                format: date-time
+                type: string
               description: RescheduleTime is the reschedule time of this pod group
-              format: date-time
-              type: string
+              type: object
           type: object
       type: object
   version: v1

@@ -56,7 +56,7 @@ type PodGroupStatus struct {
 
 	// RescheduleTime is the reschedule time of this pod group
 	// +optional
-	RescheduleTime *metav1.Time `json:"rescheduleTime,omitempty"`
+	RescheduleTimes map[string]metav1.Time `json:"rescheduleTimes,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -93,12 +93,14 @@ func (pg *PodGroupSpec) GetScheduleTimeout() (*time.Duration, error) {
 
 // ScheduleTime is a wrapper of RescheduleTime field of status,
 // it returns create time if RescheduleTime field is nil.
-func (pg *PodGroup) ScheduleTime() time.Time {
-	if pg.Status.RescheduleTime == nil {
+func (pg *PodGroup) ScheduleTime(pgName string) time.Time {
+	if pg.Status.RescheduleTimes == nil {
 		return pg.CreationTimestamp.Time
 	}
-
-	return pg.Status.RescheduleTime.Time
+	if _, ok := pg.Status.RescheduleTimes[pgName]; !ok {
+		return pg.CreationTimestamp.Time
+	}
+	return pg.Status.RescheduleTimes[pgName].Time
 }
 
 // +kubebuilder:object:root=true

@@ -55,6 +55,8 @@ var (
 type Args struct {
 	// ScheduleTimeout is the wait duration in scheduling
 	ScheduleTimeout util.Duration `yaml:"scheduleTimeout" json:"scheduleTimeout"`
+	// RescheduleDelayOffset is the shift of the next reschedule time since now
+	RescheduleDelayOffset util.Duration `yaml:"rescheduleDelayOffset" json:"rescheduleDelayOffset"`
 }
 
 // Scheduler is the custom scheduler of naglfar system
@@ -86,7 +88,6 @@ func (s *Scheduler) Less(podInfo1, podInfo2 *framework.QueuedPodInfo) bool {
 func (s *Scheduler) PreFilter(ctx context.Context, state *framework.CycleState, pod *v1.Pod) *framework.Status {
 	// If any validation failed, a no-op state data is injected to "state" so that in later
 	// phases we can tell whether the failure comes from PreFilter or not.
-	klog.V(2).Infof("Pre-filter %v", pod.Name)
 	if err := s.podGroupManager.PreFilter(ctx, pod); err != nil {
 		klog.Error(err)
 		state.Write(s.getStateKey(), noOp)
@@ -175,21 +176,23 @@ func (s *Scheduler) Filter(ctx context.Context, state *framework.CycleState, pod
 // Is used to rejecting a group of pods if a pod does not pass PreFilter or Filter.
 func (s *Scheduler) PostFilter(ctx context.Context, state *framework.CycleState, pod *v1.Pod,
 	filteredNodeStatusMap framework.NodeToStatusMap) (*framework.PostFilterResult, *framework.Status) {
-	// Check if the failure comes from PreFilter.
-	op, _ := state.Read(s.getStateKey())
-	if op == noOp {
-		state.Delete(s.getStateKey())
-		return &framework.PostFilterResult{}, framework.NewStatus(framework.Unschedulable)
-	}
-
 	pg, pgSpec, err := s.podGroupManager.podGroup(pod)
 	if err != nil {
 		return &framework.PostFilterResult{}, framework.NewStatus(framework.Error, err.Error())
 	}
 	if pg == nil {
-		return &framework.PostFilterResult{}, framework.NewStatus(framework.Success, "no binding pod group")
+		return &framework.PostFilterResult{}, framework.NewStatus(framework.Unschedulable, "no binding pod group")
 	}
-
+	pgn := getPodGroupNameFromPod(pod)
+	// Check if the failure comes from PreFilter.
+	op, _ := state.Read(s.getStateKey())
+	if op == noOp {
+		state.Delete(s.getStateKey())
+		if err := s.podGroupManager.reschedule(pg, pgn, s.args.RescheduleDelayOffset.Unwrap()); err != nil {
+			klog.Errorf("Failed to reschedule pod group %s/%s: %s", pg.Namespace, pg.Name, err.Error())
+		}
+		return &framework.PostFilterResult{}, framework.NewStatus(framework.Unschedulable)
+	}
 	// This indicates there are already enough Pods satisfying the PodGroup,
 	// so don't bother to reject the whole PodGroup.
 	assigned := s.podGroupManager.calculateAssignedPods(pod.Namespace, getPodGroupNameSliceFromPod(pod))
@@ -197,11 +200,9 @@ func (s *Scheduler) PostFilter(ctx context.Context, state *framework.CycleState,
 		return &framework.PostFilterResult{}, framework.NewStatus(framework.Unschedulable)
 	}
 
-	_, err = s.podGroupManager.reschedule(pg)
-	if err != nil {
+	if err := s.podGroupManager.reschedule(pg, pgn, s.args.RescheduleDelayOffset.Unwrap()); err != nil {
 		klog.Errorf("Failed to reschedule pod group %s/%s: %s", pg.Namespace, pg.Name, err.Error())
 	}
-
 	// It's based on an implicit assumption: if the nth Pod failed,
 	// it's inferrable other Pods belonging to the same PodGroup would be very likely to fail.
 	s.handle.IterateOverWaitingPods(func(waitingPod framework.WaitingPod) {
@@ -263,7 +264,6 @@ func (s *Scheduler) Permit(ctx context.Context, state *framework.CycleState, pod
 		return framework.NewStatus(framework.UnschedulableAndUnresolvable, err.Error()), waitTime
 	}
 
-	klog.Infof("Pod requires podgroup %s", getPodGroupNameFromPod(pod))
 	if !ready {
 		return framework.NewStatus(framework.Wait, ""), waitTime
 	}
@@ -294,10 +294,8 @@ func (s *Scheduler) Unreserve(ctx context.Context, state *framework.CycleState, 
 		klog.Errorf("Cannot get pod group: %s", err.Error())
 		return
 	}
-
 	if podGroup != nil {
-		_, err = s.podGroupManager.reschedule(podGroup)
-		if err != nil {
+		if err := s.podGroupManager.reschedule(podGroup, getPodGroupNameFromPod(pod), s.args.RescheduleDelayOffset.Unwrap()); err != nil {
 			klog.Errorf("Failed to reschedule pod group %s/%s: %s", podGroup.Namespace, podGroup.Name, err.Error())
 		}
 		s.handle.IterateOverWaitingPods(func(waitingPod framework.WaitingPod) {
@@ -326,6 +324,9 @@ func New(cfg runtime.Object, f framework.FrameworkHandle) (framework.Plugin, err
 	}
 	if _, err := args.ScheduleTimeout.Parse(); err != nil {
 		return nil, fmt.Errorf("invalid ScheduleTimeout: %s", err.Error())
+	}
+	if _, err := args.RescheduleDelayOffset.Parse(); err != nil {
+		return nil, fmt.Errorf("invalid rescheduleDelayOffset: %s", err.Error())
 	}
 	klog.V(3).Infof("Get plugin config args: %+v", args)
 

@@ -80,14 +80,18 @@ func (mgr *PodGroupManager) PreFilter(ctx context.Context, pod *corev1.Pod) erro
 	if pg == nil {
 		return nil
 	}
+	pgn := getPodGroupNameFromPod(pod)
+	if pg.ScheduleTime(pgn).After(time.Now()) {
+		return fmt.Errorf("podGroup %s/%s denies to schedule util %s", pg.Namespace, pg.Name, pg.ScheduleTime(pgn).String())
+	}
 	pgns := getPodGroupNameSliceFromPod(pod)
 	friends, err := mgr.podLister.Pods(pod.Namespace).List(pgns)
 
 	if err != nil {
-		return fmt.Errorf("cannot list pods in the podGroup %s: %s", pgns.PodGroupName(), err.Error())
+		return fmt.Errorf("cannot list pods in the podGroup %s/%s: %s", pg.Namespace, pgns.PodGroupName(), err.Error())
 	}
 	if len(friends) < int(pgSpec.MinMember) {
-		return fmt.Errorf("the number of pods in the podGroup %s is less than minMember: %d < %d", pgns.PodGroupName(), len(friends), pgSpec.MinMember)
+		return fmt.Errorf("the number of pods in the podGroup %s/%s is less than minMember: %d < %d", pg.Namespace, pgns.PodGroupName(), len(friends), pgSpec.MinMember)
 	}
 	return nil
 }
@@ -179,12 +183,22 @@ func (mgr *PodGroupManager) calculateAssignedPods(namespace string, pgNameSlice 
 }
 
 // reschedule is a method to reschedule pod group to end of queue.
-func (mgr *PodGroupManager) reschedule(podGroup *apiv1.PodGroup) (*apiv1.PodGroup, error) {
-	if podGroup.Status.RescheduleTime == nil {
-		podGroup.Status.RescheduleTime = &metav1.Time{}
+func (mgr *PodGroupManager) reschedule(podGroup *apiv1.PodGroup, pgName string, rescheduleDelayOffset time.Duration) error {
+	if podGroup.Status.RescheduleTimes == nil {
+		podGroup.Status.RescheduleTimes = make(map[string]metav1.Time)
 	}
-	podGroup.Status.RescheduleTime.Time = time.Now()
-	return mgr.schedulingClient.PodGroups(podGroup.Namespace).UpdateStatus(mgr.ctx, podGroup, metav1.UpdateOptions{})
+	if _, ok := podGroup.Status.RescheduleTimes[pgName]; !ok {
+		podGroup.Status.RescheduleTimes[pgName] = metav1.Time{}
+	}
+	now := time.Now()
+	if podGroup.Status.RescheduleTimes[pgName].Time.Before(now) {
+		podGroup.Status.RescheduleTimes[pgName] = metav1.Time{Time: now.Add(rescheduleDelayOffset)}
+		if _, err := mgr.schedulingClient.PodGroups(podGroup.Namespace).UpdateStatus(mgr.ctx, podGroup, metav1.UpdateOptions{}); err != nil {
+			return err
+		}
+		klog.V(2).Infof("Reschedule podGroup %s/%s on %s", podGroup.Namespace, podGroup.Name, podGroup.Status.RescheduleTimes[pgName].Time.String())
+	}
+	return nil
 }
 
 func (mgr *PodGroupManager) getScheduleTime(pod *corev1.Pod, defaultTime time.Time) time.Time {
@@ -193,7 +207,7 @@ func (mgr *PodGroupManager) getScheduleTime(pod *corev1.Pod, defaultTime time.Ti
 		return defaultTime
 	}
 
-	return podGroup.ScheduleTime()
+	return podGroup.ScheduleTime(getPodGroupNameFromPod(pod))
 }
 
 // getPodGroupNameFromPod is a function to get podgroup label of pod
