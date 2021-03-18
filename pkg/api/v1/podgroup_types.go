@@ -17,6 +17,7 @@ limitations under the License.
 package v1
 
 import (
+	"fmt"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -42,6 +43,10 @@ type PodGroupSpec struct {
 	// SubGroups is a list of sub pod groups
 	// +optional
 	SubGroups map[string]PodGroupSpec `json:"subGroups,omitempty"`
+
+	// ScheduleTimeout sets the max wait scheduing time before the podGroup is ready
+	// +optional
+	ScheduleTimeout *Duration `json:"scheduleTimeout,omitempty"`
 }
 
 // PodGroupStatus defines the observed state of PodGroup
@@ -49,9 +54,9 @@ type PodGroupStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// NextSchedulingTime is the time to schedule this pod group
+	// RescheduleTime is the reschedule time of this pod group
 	// +optional
-	NextSchedulingTime *metav1.Time `json:"nextchedulingTime,omitempty"`
+	RescheduleTimes map[string]metav1.Time `json:"rescheduleTimes,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -75,14 +80,27 @@ func (pg *PodGroupSpec) IsExclusive() bool {
 	return *pg.Exclusive
 }
 
-// SchedulingTime is a wrapper of NextSchedulingTime field of status,
-// it returns create time if NextSchedulingTime field is nil.
-func (pg *PodGroup) SchedulingTime() time.Time {
-	if pg.Status.NextSchedulingTime == nil {
+func (pg *PodGroupSpec) GetScheduleTimeout() (*time.Duration, error) {
+	if pg.ScheduleTimeout == nil {
+		return nil, nil
+	}
+	d, err := pg.ScheduleTimeout.Parse()
+	if err != nil {
+		return nil, fmt.Errorf("parse scheduleTimeout %s error: %v", *pg.ScheduleTimeout, err)
+	}
+	return &d, nil
+}
+
+// ScheduleTime is a wrapper of RescheduleTime field of status,
+// it returns create time if RescheduleTime field is nil.
+func (pg *PodGroup) ScheduleTime(pgName string) time.Time {
+	if pg.Status.RescheduleTimes == nil {
 		return pg.CreationTimestamp.Time
 	}
-
-	return pg.Status.NextSchedulingTime.Time
+	if _, ok := pg.Status.RescheduleTimes[pgName]; !ok {
+		return pg.CreationTimestamp.Time
+	}
+	return pg.Status.RescheduleTimes[pgName].Time
 }
 
 // +kubebuilder:object:root=true

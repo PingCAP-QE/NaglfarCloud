@@ -1,3 +1,6 @@
+IMG_PREFIX ?=
+IMG_SCHEDULER ?= ${IMG_PREFIX}naglfar-scheduler
+IMG_MANAGER ?= ${IMG_PREFIX}naglfarcloud-manager
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true"
 
@@ -10,18 +13,18 @@ endif
 
 CONTROLLER_GEN=$(GOBIN)/controller-gen
 
-all: scheduler
+all: manifests scheduler manager
 
 # Run tests
 test: fmt vet
 	go test ./... -coverprofile cover.out
 
-# Build manager binary
+# Build scheduler binary
 scheduler: mod format
 	go build -o bin/scheduler main.go
 
 # Build webhook manager binary
-webhook: mod format
+manager: mod format
 	go build -o bin/webhook webhook/main.go
 
 clean:
@@ -42,66 +45,67 @@ mod:
 	GO111MODULE=on go mod tidy
 	@git diff --exit-code -- go.sum go.mod
 
+manifests:
+	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./pkg/..." output:crd:artifacts:config=deploy/crd/bases
+	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./pkg/..."
+
 # Install CRDs into a cluster
-install: manifests
+install-manifests: manifests
 	kustomize build deploy/crd | kubectl apply -f -
 
 # Uninstall CRDs from a cluster
-uninstall: manifests
+uninstall-manifests: manifests
 	kustomize build deploy/crd | kubectl delete -f -
 
-image:
-	DOCKER_BUILDKIT=1 docker build -t naglfar-scheduler -f docker/scheduler/Dockerfile .
+scheduler-image:
+	DOCKER_BUILDKIT=1 docker build -t ${IMG_SCHEDULER} -f docker/scheduler/Dockerfile .
 
-webhook-image: docker/manager/Dockerfile *.go
-	DOCKER_BUILDKIT=1 docker build -t naglfarcloud-manager -f docker/manager/Dockerfile .
+manager-image:
+	DOCKER_BUILDKIT=1 docker build -t ${IMG_MANAGER} -f docker/manager/Dockerfile .
 
-upload: image
-	minikube image load naglfar-scheduler
+upload-image: scheduler-image manager-image
+	docker push ${IMG_SCHEDULER}
+	docker push ${IMG_MANAGER}
 
-deploy: install upload deploy/naglfar-scheduler.yaml
+deploy-scheduler: install-manifests
 	kubectl apply -f deploy/naglfar-scheduler.yaml
 
-deploy-manager: webhook-image deploy/webhook/*.yaml
+deploy-manager: install-manifests
 	kubectl apply -f deploy/webhook/namespace.yaml
-	kubectl apply -f deploy/webhook/manager.yaml
-
-deploy-cert: deploy-manager
 	kubectl apply -f deploy/webhook/cert.yaml
-
-deploy-webhook: deploy-cert
+	kubectl apply -f deploy/webhook/manager.yaml
 	kubectl apply -f deploy/webhook/webhook.yaml
 
-upgrade: deploy
+upgrade-scheduler: deploy-scheduler
 	kubectl rollout restart deployment/naglfar-scheduler -n kube-system
+	kubectl rollout status deployment/naglfar-scheduler -n kube-system
 
-upgrade-webhook: destroy-webhook deploy-webhook
+upgrade-manager: deploy-manager
+	# kubectl delete -f deploy/webhook/webhook.yaml
 	kubectl rollout restart deployment/naglfar-labeler -n naglfar-system
+	kubectl rollout status deployment/naglfar-labeler -n naglfar-system
+	# kubectl apply -f deploy/webhook/webhook.yaml
 
-destroy:
+destroy-scheduler:
 	kubectl delete -f deploy/naglfar-scheduler.yaml
 
-destroy-webhook:
+destroy-manager:
 	kubectl delete -f deploy/webhook/webhook.yaml
-	kubectl delete -f deploy/webhook/cert.yaml
 	kubectl delete -f deploy/webhook/manager.yaml
+	kubectl delete -f deploy/webhook/cert.yaml
 	kubectl delete -f deploy/webhook/namespace.yaml
 
-describe:
+describe-scheduler:
 	kubectl describe deployment/naglfar-scheduler -n kube-system
 
-log:
+describe-manager:
+	kubectl describe deployment/naglfar-labeler -n naglfar-system
+
+log-scheduler:
 	kubectl logs -f deployment/naglfar-scheduler -n kube-system
 
-log-webhook:
+log-manager:
 	kubectl logs -f deployment/naglfar-labeler -n naglfar-system -c manager
-
-manifests: pkg/api/v1/*.go
-	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./pkg/..." output:crd:artifacts:config=deploy/crd/bases
-
-# Generate code
-generate: manifests
-	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./pkg/..."
 
 install-controller-gen:
 ifeq (, $(shell which controller-gen))

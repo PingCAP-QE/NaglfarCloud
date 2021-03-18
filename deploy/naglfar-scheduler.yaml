@@ -125,10 +125,18 @@ rules:
       - "naglfar.pingcap.com"
     resources:
       - podgroups
+      - podgroups/status
     verbs:
       - create
       - get
       - list
+      - update
+  - apiGroups:
+      - "naglfar.pingcap.com"
+    resources:
+      - podgroups/status
+    verbs:
+      - patch
       - update
 ---
 apiVersion: v1
@@ -198,7 +206,8 @@ data:
       pluginConfig:
       - name: naglfar-scheduler
         args:
-          scheduleTimeout: 10s
+          scheduleTimeout: 60s
+          rescheduleDelayOffset: 20s
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -228,8 +237,8 @@ spec:
             type: FileOrCreate
           name: kubeconfig
       containers:
-        - name: naglfar-scheduler-ctrl
-          image: naglfar-scheduler:latest
+        - name: naglfar-scheduler
+          image: naglfar-scheduler
           imagePullPolicy: IfNotPresent
           args:
             - /bin/kube-scheduler

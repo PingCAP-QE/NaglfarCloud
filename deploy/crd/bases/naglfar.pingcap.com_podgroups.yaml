@@ -46,6 +46,10 @@ spec:
                 the scheduler will not start anyone.
               format: int32
               type: integer
+            scheduleTimeout:
+              description: ScheduleTimeout sets the max wait scheduing time before
+                the podGroup is ready
+              type: string
             subGroups:
               additionalProperties: {}
               description: SubGroups is a list of sub pod groups
@@ -54,10 +58,12 @@ spec:
         status:
           description: PodGroupStatus defines the observed state of PodGroup
           properties:
-            nextchedulingTime:
-              description: NextSchedulingTime is the time to schedule this pod group
-              format: date-time
-              type: string
+            rescheduleTimes:
+              additionalProperties:
+                format: date-time
+                type: string
+              description: RescheduleTime is the reschedule time of this pod group
+              type: object
           type: object
       type: object
   version: v1
