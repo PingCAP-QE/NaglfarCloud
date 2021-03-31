@@ -70,7 +70,8 @@ upload-image: scheduler-image manager-image
 	docker push ${IMG_MANAGER}
 
 # deploy-scheduler: install-manifests
-# 	kubectl apply -f deploy/naglfar-scheduler.yaml
+# 	kubectl apply -f deploy/scheduler/naglfar-scheduler-sa.yaml
+# 	kubectl apply -f deploy/scheduler/naglfar-scheduler-deployment.yaml
 
 deploy-manager: install-manifests
 	kubectl apply -f deploy/webhook/namespace.yaml
@@ -90,7 +91,8 @@ upgrade-manager: deploy-manager
 	# kubectl apply -f deploy/webhook/webhook.yaml
 
 # destroy-scheduler:
-# 	kubectl delete -f deploy/naglfar-scheduler.yaml
+# 	kubectl delete -f deploy/scheduler/naglfar-scheduler.yaml
+# 	kubectl delete -f deploy/scheduler/naglfar-scheduler-sa.yaml
 
 destroy-manager:
 	kubectl delete -f deploy/webhook/webhook.yaml
