@@ -1,6 +1,8 @@
 IMG_PREFIX ?=
-IMG_SCHEDULER ?= ${IMG_PREFIX}naglfar-scheduler
-IMG_MANAGER ?= ${IMG_PREFIX}naglfarcloud-manager
+SCHEDULER_TAG ?= v1.19.8
+TAG ?= latest
+IMG_SCHEDULER ?= ${IMG_PREFIX}naglfar-scheduler:${SCHEDULER_TAG}
+IMG_MANAGER ?= ${IMG_PREFIX}naglfarcloud-manager:${TAG}
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true"
 
@@ -67,18 +69,20 @@ upload-image: scheduler-image manager-image
 	docker push ${IMG_SCHEDULER}
 	docker push ${IMG_MANAGER}
 
-deploy-scheduler: install-manifests
-	kubectl apply -f deploy/naglfar-scheduler.yaml
+# deploy-scheduler: install-manifests
+# 	kubectl apply -f deploy/scheduler/naglfar-scheduler-rbac.yaml
+# 	kubectl apply -f deploy/scheduler/naglfar-scheduler-deployment.yaml
 
 deploy-manager: install-manifests
 	kubectl apply -f deploy/webhook/namespace.yaml
 	kubectl apply -f deploy/webhook/cert.yaml
 	kubectl apply -f deploy/webhook/manager.yaml
+	kubectl rollout status deployments/naglfar-labeler -n naglfar-system
 	kubectl apply -f deploy/webhook/webhook.yaml
 
-upgrade-scheduler: deploy-scheduler
-	kubectl rollout restart deployment/naglfar-scheduler -n kube-system
-	kubectl rollout status deployment/naglfar-scheduler -n kube-system
+# upgrade-scheduler: deploy-scheduler
+# 	kubectl rollout restart deployment/naglfar-scheduler -n kube-system
+# 	kubectl rollout status deployment/naglfar-scheduler -n kube-system
 
 upgrade-manager: deploy-manager
 	# kubectl delete -f deploy/webhook/webhook.yaml
@@ -86,8 +90,9 @@ upgrade-manager: deploy-manager
 	kubectl rollout status deployment/naglfar-labeler -n naglfar-system
 	# kubectl apply -f deploy/webhook/webhook.yaml
 
-destroy-scheduler:
-	kubectl delete -f deploy/naglfar-scheduler.yaml
+# destroy-scheduler:
+# 	kubectl delete -f deploy/scheduler/naglfar-scheduler.yaml
+# 	kubectl delete -f deploy/scheduler/naglfar-scheduler-rbac.yaml
 
 destroy-manager:
 	kubectl delete -f deploy/webhook/webhook.yaml
@@ -95,14 +100,14 @@ destroy-manager:
 	kubectl delete -f deploy/webhook/cert.yaml
 	kubectl delete -f deploy/webhook/namespace.yaml
 
-describe-scheduler:
-	kubectl describe deployment/naglfar-scheduler -n kube-system
+# describe-scheduler:
+# 	kubectl describe deployment/naglfar-scheduler -n kube-system
 
 describe-manager:
 	kubectl describe deployment/naglfar-labeler -n naglfar-system
 
-log-scheduler:
-	kubectl logs -f deployment/naglfar-scheduler -n kube-system
+# log-scheduler:
+# 	kubectl logs -f deployment/naglfar-scheduler -n kube-system
 
 log-manager:
 	kubectl logs -f deployment/naglfar-labeler -n naglfar-system -c manager

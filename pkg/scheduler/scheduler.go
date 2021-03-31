@@ -53,6 +53,8 @@ var (
 
 // Args is the arguements for initializing scheduler
 type Args struct {
+	// KubeConfig is the kubeconfig file path
+	KubeConfig string `yaml:"kubeconfig" json:"kubeconfig"`
 	// ScheduleTimeout is the wait duration in scheduling
 	ScheduleTimeout util.Duration `yaml:"scheduleTimeout" json:"scheduleTimeout"`
 	// RescheduleDelayOffset is the shift of the next reschedule time since now
@@ -330,7 +332,7 @@ func New(cfg runtime.Object, f framework.FrameworkHandle) (framework.Plugin, err
 	}
 	klog.V(3).Infof("Get plugin config args: %+v", args)
 
-	conf, err := clientcmd.BuildConfigFromFlags("", "")
+	conf, err := clientcmd.BuildConfigFromFlags("", args.KubeConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init rest.Config: %v", err)
 	}

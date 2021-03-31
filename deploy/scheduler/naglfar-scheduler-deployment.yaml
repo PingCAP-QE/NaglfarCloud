@@ -1,0 +1,100 @@
+# Only for debug environment
+---
+# apiVersion: v1
+# kind: ConfigMap
+# metadata:
+#   name: scheduler-config
+#   namespace: kube-system
+# data:
+#   scheduler-config.yaml: |
+#     apiVersion: kubescheduler.config.k8s.io/v1beta1
+#     clientConnection:
+#       kubeconfig: "/etc/kubernetes/scheduler.conf"
+#     kind: KubeSchedulerConfiguration
+#     profiles:
+#     - schedulerName: naglfar-scheduler
+#       plugins:
+#         queueSort:
+#           enabled:
+#             - name: naglfar-scheduler
+#           disabled:
+#             - name: "*"
+#         preFilter:
+#           enabled:
+#             - name: naglfar-scheduler
+#         filter:
+#           enabled:
+#             - name: naglfar-scheduler
+#         postFilter:
+#           enabled:
+#             - name: naglfar-scheduler
+#         score:
+#           enabled:
+#             - name: naglfar-scheduler
+#               weight: 10000
+#         permit:
+#           enabled:
+#             - name: naglfar-scheduler
+#         reserve:
+#           enabled:
+#             - name: naglfar-scheduler
+#         postBind:
+#           enabled:
+#             - name: naglfar-scheduler
+#       pluginConfig:
+#       - name: naglfar-scheduler
+#         args:
+#           scheduleTimeout: 60s
+#           rescheduleDelayOffset: 20s
+#           kubeconfig: /etc/kubernetes/scheduler.conf
+# ---
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: naglfar-scheduler
+#   namespace: kube-system
+#   labels:
+#     component: naglfar-scheduler
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       component: naglfar-scheduler
+#   template:
+#     metadata:
+#       labels:
+#         component: naglfar-scheduler
+#     spec:
+#       priorityClassName: system-cluster-critical
+#       volumes:
+#         - name: scheduler-config
+#           configMap:
+#             name: scheduler-config
+#         - hostPath:
+#             path: /etc/kubernetes/scheduler.conf
+#             type: FileOrCreate
+#           name: kubeconfig
+#       containers:
+#         - name: naglfar-scheduler
+#           image: naglfar-scheduler
+#           imagePullPolicy: IfNotPresent
+#           args:
+#             - /bin/kube-scheduler
+#             - --authentication-kubeconfig=/etc/kubernetes/scheduler.conf
+#             - --authorization-kubeconfig=/etc/kubernetes/scheduler.conf
+#             - --config=/etc/kubernetes/scheduler-config.yaml
+#             - --bind-address=127.0.0.1
+#             - --kubeconfig=/etc/kubernetes/scheduler.conf
+#             - --leader-elect=false
+#             - --port=0
+#             - --v=3
+#           resources:
+#             requests:
+#               cpu: "100m"
+#           volumeMounts:
+#             - name: scheduler-config
+#               mountPath: /etc/kubernetes/scheduler-config.yaml
+#               subPath: scheduler-config.yaml
+#             - name: kubeconfig
+#               mountPath: /etc/kubernetes/scheduler.conf
+#               readOnly: true
