@@ -1,20 +1,20 @@
-apiVersion: cert-manager.io/v1alpha2  
-kind: Issuer  
-metadata:  
-  name: naglfar-label-issuer  
-  namespace: naglfar-system  
-spec:  
-  selfSigned: {}  
----  
-apiVersion: cert-manager.io/v1alpha2  
-kind: Certificate  
-metadata:  
-  name: naglfar-label-cert  
-  namespace: naglfar-system  
-spec:  
-  secretName: naglfar-labeler-certs  
-  dnsNames:  
-    - naglfar-labeler-service.naglfar-system.svc  
-    - naglfar-labeler-service.naglfar-system.svc.cluster.local  
-  issuerRef:  
+apiVersion: cert-manager.io/v1alpha2
+kind: Issuer
+metadata:
+  name: naglfar-label-issuer
+  namespace: naglfar-system
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1alpha2
+kind: Certificate
+metadata:
+  name: naglfar-label-cert
+  namespace: naglfar-system
+spec:
+  secretName: naglfar-labeler-certs
+  dnsNames:
+    - naglfar-labeler-service.naglfar-system.svc
+    - naglfar-labeler-service.naglfar-system.svc.cluster.local
+  issuerRef:
     name: naglfar-label-issuer
