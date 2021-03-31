@@ -17,10 +17,10 @@ make deploy-manager
 
 ### Config the kube-scheduler
 
-1. Apply naglfar-scheduler-sa.yaml
+1. Apply naglfar-scheduler-rbac.yaml
 
     ```bash
-    $ kubectl apply -f deploy/scheduler/naglfar-scheduler-sa.yaml
+    $ kubectl apply -f deploy/scheduler/naglfar-scheduler-rbac.yaml
     clusterrole.rbac.authorization.k8s.io/system:kube-scheduler:plugins created
     clusterrolebinding.rbac.authorization.k8s.io/system:kube-scheduler:plugins created
     ```
