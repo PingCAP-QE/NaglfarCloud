@@ -10,10 +10,17 @@ IMG_PREFIX=hub.pingcap.net/qa/ make upload-image
 
 ### Install naglfar-manager
 
-```bash
-# install the naglfar-manager
-make deploy-manager
-```
+1. install cert-manager if hasn't installed
+
+    ```bash
+    make install-cert-manager
+    ```
+
+2. install naglfar-manager
+
+  ```bash
+  make deploy-manager
+  ```
 
 ### Config the kube-scheduler
 
@@ -37,6 +44,8 @@ make deploy-manager
     ```bash
     cat > /etc/kubernetes/scheduler-config.yaml <<EOF
     apiVersion: kubescheduler.config.k8s.io/v1beta1
+    leaderElection:
+      leaseDuration: 20s
     clientConnection:
       kubeconfig: "/etc/kubernetes/scheduler.conf"
     kind: KubeSchedulerConfiguration
@@ -84,6 +93,7 @@ make deploy-manager
     patch.diff:
 
     ```diff
+    cat > patch.diff <<EOF
     --- /etc/kubernetes/kube-scheduler.yaml
     +++ /etc/kubernetes/manifests/kube-scheduler.yaml
     @@ -13,12 +13,14 @@
@@ -122,8 +132,7 @@ make deploy-manager
     +      type: FileOrCreate
     +    name: scheduler-config
      status: {}
-    ```
+    EOF
 
-    ```bash
-    patch /etc/kubernetes/kube-scheduler.yaml < patch.diff
+    patch --dry-run /etc/kubernetes/manifests/kube-scheduler.yaml < patch.diff && patch /etc/kubernetes/manifests/kube-scheduler.yaml < patch.dif
     ```

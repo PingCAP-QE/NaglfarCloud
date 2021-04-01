@@ -31,7 +31,7 @@ spec:
         estimation-duration: short-term
     spec:
       terminationGracePeriodSeconds: 10
-      schedulerName: naglfar-scheduler
+      # schedulerName: naglfar-scheduler
       containers:
       - name: nginx
         image: nginx

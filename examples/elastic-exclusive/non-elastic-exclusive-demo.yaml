@@ -29,7 +29,7 @@ spec:
         app: nginx # has to match .spec.selector.matchLabels
     spec:
       terminationGracePeriodSeconds: 10
-      schedulerName: naglfar-scheduler
+      # schedulerName: naglfar-scheduler
       containers:
       - name: nginx
         image: nginx
