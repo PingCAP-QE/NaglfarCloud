@@ -39,6 +39,7 @@ spec:
         naglfar/podgroup: nginx-cluster
     spec:
       terminationGracePeriodSeconds: 10
+      # schedulerName: naglfar-scheduler
       containers:
       - name: nginx
         image: nginx
