@@ -39,7 +39,7 @@ spec:
         naglfar/podgroup: nginx-cluster
     spec:
       terminationGracePeriodSeconds: 10
-      schedulerName: naglfar-scheduler
+      # schedulerName: naglfar-scheduler
       containers:
       - name: nginx
         image: nginx
@@ -57,4 +57,4 @@ spec:
       storageClassName: "standard"
       resources:
         requests:
-          storage: 1Gi
+          storage: 100Mi
