@@ -8,7 +8,7 @@ IMG_PREFIX=hub.pingcap.net/qa/ make upload-image
 
 ## Install
 
-### Install naglfar-manager
+### Install naglfar-manager(auto-labeler)
 
 1. install cert-manager if hasn't installed
 
@@ -107,8 +107,8 @@ IMG_PREFIX=hub.pingcap.net/qa/ make upload-image
          - --port=0
     -    image: k8s.gcr.io/kube-scheduler:v1.19.8
     -    imagePullPolicy: IfNotPresent
-    +    - --v=3
-    +    image: hub.pingcap.net/qa/naglfar-scheduler:v1.19.8
+    +    - --v=2
+    +    image: docker.io/mahjonp/naglfar-scheduler:v1.19.8
     +    imagePullPolicy: Always
          livenessProbe:
            failureThreshold: 8
