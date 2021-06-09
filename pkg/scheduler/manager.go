@@ -212,7 +212,7 @@ func (mgr *PodGroupManager) getScheduleTime(pod *corev1.Pod, defaultTime time.Ti
 
 // getPodGroupNameFromPod is a function to get podgroup label of pod
 func getPodGroupNameFromPod(pod *corev1.Pod) string {
-	return strings.TrimSpace(pod.Labels[PodGroupLabel])
+	return pod.Labels[PodGroupLabel]
 }
 
 // getPodGroupNameSliceFromPod is a function to split podgroup by dot

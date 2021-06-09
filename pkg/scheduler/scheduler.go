@@ -122,14 +122,24 @@ func (s *Scheduler) PreFilterExtensions() framework.PreFilterExtensions {
 // possibility of preempting them to schedule the target pod.
 func (s *Scheduler) Filter(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
 	if isControlledByDaemonSet(pod) {
-		return framework.NewStatus(framework.Success, "")
+		return framework.NewStatus(framework.Success, fmt.Sprintf("the pod %s/%s is controlled by a DaemonSet, that's ok", pod.Namespace, pod.Name))
 	}
-
 	pg, pgSpec, err := s.podGroupManager.podGroup(pod)
 	if err != nil {
 		return framework.NewStatus(framework.Error, fmt.Sprintf("cannot get pod group of %s/%s: %s", pod.Namespace, pod.Name, err.Error()))
 	}
-
+	// can't schedule the non-tolerate-exclusive non-podgroup pod on the exclusive node
+	if pg == nil && isNodeAnnotatedExclusive(nodeInfo) && !canPodTolerateExclusiveNode(pod) {
+		return framework.NewStatus(framework.Unschedulable, fmt.Sprintf("node %s is annotated with naglfar/exclusive but the non-podgroup pod %s/%s can't tolerate it", nodeInfo.Node().Name, pod.Namespace, pod.Name))
+	}
+	// can't schedule on a non-exclusive node since the pod is exclusive
+	if pgSpec != nil && pgSpec.IsExclusive() && !isNodeAnnotatedExclusive(nodeInfo) {
+		return framework.NewStatus(framework.Unschedulable, fmt.Sprintf("non-exclusive node %s cannot be monopolized by podgroup %s/%s", nodeInfo.Node().Name, pg.Namespace, pg.Name))
+	}
+	// can't schedule on a exclusive node since the pod isn't exclusive
+	if pgSpec != nil && !pgSpec.IsExclusive() && isNodeAnnotatedExclusive(nodeInfo) {
+		return framework.NewStatus(framework.Unschedulable, fmt.Sprintf("node %s is annotated with naglfar/exclusive but the pod %s/%s isn't exclusive", nodeInfo.Node().Name, pg.Namespace, pg.Name))
+	}
 	for _, podInfo := range nodeInfo.Pods {
 		if isControlledByDaemonSet(podInfo.Pod) {
 			continue
@@ -139,21 +149,12 @@ func (s *Scheduler) Filter(ctx context.Context, state *framework.CycleState, pod
 			return framework.NewStatus(framework.Error, fmt.Sprintf("cannot get pod group of %s/%s: %s", podInfo.Pod.Namespace, podInfo.Pod.Name, err.Error()))
 		}
 		switch {
-		// can't monopolized a non-exclusive node
-		case pgSpec != nil && pgSpec.IsExclusive() && !isNodeAnnotatedExclusive(nodeInfo):
-			return framework.NewStatus(framework.Unschedulable, fmt.Sprintf("non-exclusive node %s cannot be monopolized by podgroup %s/%s", nodeInfo.Node().Name, pg.Namespace, pg.Name))
-		// can't monopolized a exclusive node since there are some non-podGroup pods on that
-		case pgSpec != nil && pgSpec.IsExclusive() && pipgSpec == nil:
-			return framework.NewStatus(framework.Unschedulable, fmt.Sprintf("node %s cannot be monopolized by podgroup %s/%s", nodeInfo.Node().Name, pg.Namespace, pg.Name))
-		case pgSpec == nil:
-			// can't schedule this pod on the node which has been monopolized
-			if pipgSpec != nil && pipgSpec.IsExclusive() {
-				return framework.NewStatus(framework.Unschedulable, fmt.Sprintf("node %s is already monopolized by podgroup %s/%s", nodeInfo.Node().Name, pipg.Namespace, pipg.Name))
-			}
-			// can't schedule this pod on the node since it can't tolerate the exclusive node
-			if isNodeAnnotatedExclusive(nodeInfo) && !canPodTolerateExclusiveNode(pod) {
-				return framework.NewStatus(framework.Unschedulable, fmt.Sprintf("node %s is annotated with naglfar/exclusive but pod %s/%s can't tolerate it", nodeInfo.Node().Name, pod.Namespace, pod.Name))
-			}
+		// can't monopolized a exclusive node since there are some running non-podGroup pods(because of the elastic exclusive feature) on that
+		case pgSpec != nil && pgSpec.IsExclusive() && pipgSpec == nil && podInfo.Pod.Status.Phase == v1.PodRunning:
+			return framework.NewStatus(framework.Unschedulable, fmt.Sprintf("node %s cannot be monopolized by podgroup %s/%s since there already exists a non-podgroup pod %s on it", nodeInfo.Node().Name, pg.Namespace, pg.Name, podInfo.Pod.GetName()))
+		// can't schedule this pod on the node which has been monopolized
+		case pgSpec == nil && pipgSpec != nil && pipgSpec.IsExclusive():
+			return framework.NewStatus(framework.Unschedulable, fmt.Sprintf("node %s is already monopolized by podgroup %s/%s", nodeInfo.Node().Name, pipg.Namespace, pipg.Name))
 		// can't schedule a node since there are some mutually exclusive pods on that
 		case pg != nil && pipg != nil && pg.UID != pipg.UID:
 			if pgSpec.IsExclusive() || pipgSpec.IsExclusive() {

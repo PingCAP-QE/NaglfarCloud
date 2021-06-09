@@ -93,14 +93,14 @@ func (pg *PodGroupSpec) GetScheduleTimeout() (*time.Duration, error) {
 
 // ScheduleTime is a wrapper of RescheduleTime field of status,
 // it returns create time if RescheduleTime field is nil.
-func (pg *PodGroup) ScheduleTime(pgName string) time.Time {
+func (pg *PodGroup) ScheduleTime(subName string) time.Time {
 	if pg.Status.RescheduleTimes == nil {
 		return pg.CreationTimestamp.Time
 	}
-	if _, ok := pg.Status.RescheduleTimes[pgName]; !ok {
+	if _, ok := pg.Status.RescheduleTimes[subName]; !ok {
 		return pg.CreationTimestamp.Time
 	}
-	return pg.Status.RescheduleTimes[pgName].Time
+	return pg.Status.RescheduleTimes[subName].Time
 }
 
 // +kubebuilder:object:root=true
